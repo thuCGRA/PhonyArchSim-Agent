@@ -1,0 +1,397 @@
+{
+  "version": 2,
+  "layers": {
+    "system": {
+      "label": "system (系统架构层)",
+      "params": {
+        "tiles": {
+          "kind": "int",
+          "values": [
+            1,
+            2,
+            4,
+            8
+          ],
+          "step": 1,
+          "map": [
+            "arch",
+            "system",
+            "tiles"
+          ],
+          "mode": "both",
+          "refine": false
+        },
+        "cores_per_tile": {
+          "kind": "int",
+          "values": [
+            1,
+            2,
+            4
+          ],
+          "step": 1,
+          "map": [
+            "arch",
+            "system",
+            "cores_per_tile"
+          ],
+          "mode": "both",
+          "refine": false
+        },
+        "dataflow": {
+          "kind": "enum",
+          "values": [
+            "output_stationary",
+            "weight_stationary",
+            "input_stationary"
+          ],
+          "map": [
+            "arch",
+            "system",
+            "dataflow"
+          ],
+          "mode": "both"
+        },
+        "precision_in_bit": {
+          "kind": "bits",
+          "values": [
+            2,
+            4,
+            8
+          ],
+          "map": [
+            "arch",
+            "optical_core",
+            "precision",
+            "in_bit"
+          ],
+          "mode": "both",
+          "refine": false,
+          "constraint": "in_bit <= dac.prec"
+        },
+        "precision_w_bit": {
+          "kind": "bits",
+          "values": [
+            2,
+            4,
+            8
+          ],
+          "map": [
+            "arch",
+            "optical_core",
+            "precision",
+            "w_bit"
+          ],
+          "mode": "both",
+          "refine": false
+        },
+        "precision_out_bit": {
+          "kind": "bits",
+          "values": [
+            2,
+            4,
+            8
+          ],
+          "map": [
+            "arch",
+            "optical_core",
+            "precision",
+            "out_bit"
+          ],
+          "mode": "both",
+          "refine": false,
+          "constraint": "out_bit <= adc.prec"
+        },
+        "hbm_bandwidth": {
+          "kind": "int",
+          "values": [
+            512,
+            1024,
+            2048
+          ],
+          "step": 128,
+          "map": [
+            "arch",
+            "memory",
+            "HBM",
+            "bandwidth"
+          ],
+          "mode": "both",
+          "refine": true
+        },
+        "glb1_cache_size": {
+          "kind": "int",
+          "values": [
+            64,
+            256,
+            485,
+            1024,
+            4096
+          ],
+          "step": 64,
+          "map": [
+            "arch",
+            "memory",
+            "GLB1",
+            "cache_size"
+          ],
+          "mode": "real",
+          "refine": true
+        },
+        "glb2_cache_size": {
+          "kind": "int",
+          "values": [
+            64,
+            256,
+            485,
+            1024,
+            4096
+          ],
+          "step": 64,
+          "map": [
+            "arch",
+            "memory",
+            "GLB2",
+            "cache_size"
+          ],
+          "mode": "real",
+          "refine": true
+        },
+        "rf_cache_size": {
+          "kind": "int",
+          "values": [
+            64,
+            256,
+            485,
+            1024,
+            4096
+          ],
+          "step": 64,
+          "map": [
+            "arch",
+            "memory",
+            "RF",
+            "cache_size"
+          ],
+          "mode": "real",
+          "refine": true
+        }
+      }
+    },
+    "optical_core": {
+      "label": "optical_core (光学计算核心层)",
+      "params": {
+        "core_height": {
+          "kind": "int",
+          "values": [
+            8,
+            12,
+            16
+          ],
+          "step": 2,
+          "map": [
+            "arch",
+            "optical_core",
+            "height"
+          ],
+          "mode": "both",
+          "refine": true
+        },
+        "core_width": {
+          "kind": "int",
+          "values": [
+            8,
+            12,
+            16
+          ],
+          "step": 2,
+          "map": [
+            "arch",
+            "optical_core",
+            "width"
+          ],
+          "mode": "both",
+          "refine": true
+        },
+        "num_wavelength": {
+          "kind": "int",
+          "values": [
+            8,
+            12,
+            16
+          ],
+          "step": 2,
+          "map": [
+            "arch",
+            "optical_core",
+            "num_wavelength"
+          ],
+          "mode": "both",
+          "refine": true
+        },
+        "work_freq": {
+          "kind": "int",
+          "values": [
+            5,
+            10,
+            15,
+            20,
+            25
+          ],
+          "step": 5,
+          "map": [
+            "arch",
+            "optical_core",
+            "work_freq"
+          ],
+          "mode": "both",
+          "refine": true,
+          "constraint": "work_freq <= mzm.symbol_rate"
+        }
+      }
+    },
+    "topology": {
+      "label": "topology (拓扑与电路层)",
+      "params": {
+        "sharing_policy": {
+          "kind": "enum",
+          "values": [
+            "no_sharing",
+            "adc_shared",
+            "adc_tia_shared"
+          ],
+          "map": [
+            "arch",
+            "topology",
+            "sharing_policy"
+          ],
+          "mode": "both"
+        },
+        "temporal_accum": {
+          "kind": "enum",
+          "values": [
+            "off",
+            "default",
+            "deep"
+          ],
+          "map": [
+            "arch",
+            "topology",
+            "temporal_accum"
+          ],
+          "mode": "both"
+        },
+        "laser_distribution": {
+          "kind": "enum",
+          "values": [
+            "H*W",
+            "H*W*N",
+            "H*W*N*C"
+          ],
+          "map": [
+            "arch",
+            "topology",
+            "laser_distribution"
+          ],
+          "mode": "both"
+        }
+      }
+    },
+    "device": {
+      "label": "device (器件选择层)",
+      "kind": "selection",
+      "note": "候选由 simphony/configs/devices 运行时自动发现；下表为当前器件库中参与 core/node 网表的类型快照（实际搜索以运行时发现为准）。另外两个 params 是实例级器件类型切换（非库内器件类型）：laser_source 在片上/片外激光源间切换 i4 实例，splitter_kind 在激光分光器/1x10 MMI 间切换 i6 实例——两者保持实例编号/缩放规则/光路位置不变，只换器件类型。",
+      "params": {
+        "laser_source": {
+          "kind": "enum",
+          "values": [
+            "on_chip",
+            "off_chip"
+          ],
+          "map": [
+            "devices",
+            "core",
+            "laser_source"
+          ],
+          "mode": "both"
+        },
+        "splitter_kind": {
+          "kind": "enum",
+          "values": [
+            "laser_splitter",
+            "mmi"
+          ],
+          "map": [
+            "devices",
+            "core",
+            "splitter_kind"
+          ],
+          "mode": "both"
+        }
+      },
+      "candidates": {
+        "core": {
+          "mzm": [
+            "ACADEMIA_EO_MZM_1x1",
+            "ACADEMIA_EO_MZM_2x2",
+            "LT_MZM",
+            "SL_MZM"
+          ],
+          "dac": [
+            "DAC_1",
+            "DAC_2"
+          ],
+          "adc": [
+            "ADC_SAR_1"
+          ],
+          "tia": [
+            "TIA_1"
+          ],
+          "waveguide": [
+            "WG_Single_Strip"
+          ],
+          "mrr_rerouter": [
+            "LT_MRR_REROUTER"
+          ],
+          "laser_splitter": [
+            "Customized_Laser_Splitter"
+          ],
+          "micro_comb": [
+            "LT_Micro_Comb"
+          ],
+          "on_chip_laser": [
+            "Customized_Laser",
+            "LT_Laser"
+          ]
+        },
+        "node": {
+          "phase_shifter": [
+            "ACADEMIA_TO_PS",
+            "Customized_PS",
+            "ITO_PS",
+            "MEMS_PS"
+          ],
+          "photodetector": [
+            "ACADEMIA_Analog_PD",
+            "ACADEMIA_Digital_PD",
+            "LT_PD"
+          ],
+          "coupler": [
+            "ACADEMIA_DC_2x2",
+            "Customized_DC_1x1",
+            "Customized_DC_2x2",
+            "LT_DC_2x2"
+          ],
+          "y_branch": [
+            "Customized_Y_Branch",
+            "LT_Y_Branch"
+          ]
+        }
+      }
+    },
+    "device_param": {
+      "label": "device_param (器件参数层)",
+      "kind": "fixed",
+      "note": "library cfgs are fixed; only variant selection is searchable"
+    }
+  }
+}

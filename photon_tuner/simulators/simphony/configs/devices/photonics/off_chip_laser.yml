@@ -1,0 +1,16 @@
+off_chip_laser:
+  LT_Laser:
+    PDK: ""
+    ref: ""
+    type: Laser
+    exp: True
+    cfgs:
+      power: 23.5
+      length: 400
+      width: 300
+      # Packaged off-chip laser: higher module-level wall-plug efficiency than
+      # the on-chip Customized_Laser (0.2), and +2 dB fiber-coupling loss into
+      # the PIC (mirrors the on-chip laser's coupling loss so the on/off-chip
+      # trade-off is: efficiency up, coupling loss equal).
+      wall_plug_eff: 0.3
+      insertion_loss: 2 # dB

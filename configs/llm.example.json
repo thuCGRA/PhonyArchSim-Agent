@@ -1,0 +1,11 @@
+{
+  "provider": "paratera",
+  "model": "DeepSeek-V4-Pro-0813",
+  "base_url": "https://llmapi.paratera.com/v1",
+  "api_key": "",
+  "temperature": 0.2,
+  "max_tokens": 4096,
+  "timeout": 300,
+  "retry_attempts": 2,
+  "retry_temperature": 0.1
+}
