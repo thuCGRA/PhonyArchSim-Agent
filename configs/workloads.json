@@ -1,0 +1,45 @@
+{
+  "default": "synthetic",
+  "workloads": {
+    "synthetic": {
+      "kind": "literal",
+      "description": "Legacy 3-layer baseline (conv1/conv2/linear). Numbers are identical to the historical analytic mirror, so reference tests keep passing."
+    },
+    "vit_base": {
+      "kind": "vit",
+      "description": "ViT-Base / BERT-base encoder matching simphony/models/quantized_BERT_base.py defaults: 224px input, patch 16, dim 768, depth 12, 12 heads, MLP ratio 4.",
+      "embed_dim": 768,
+      "depth": 12,
+      "num_heads": 12,
+      "mlp_ratio": 4,
+      "img_size": 224,
+      "patch_size": 16,
+      "in_chans": 3,
+      "batch": 1
+    },
+    "vit_small": {
+      "kind": "vit",
+      "description": "Smaller ViT encoder (dim 384, depth 6, 6 heads) for cheaper search experiments.",
+      "embed_dim": 384,
+      "depth": 6,
+      "num_heads": 6,
+      "mlp_ratio": 4,
+      "img_size": 224,
+      "patch_size": 16,
+      "in_chans": 3,
+      "batch": 1
+    },
+    "vit_tiny": {
+      "kind": "vit",
+      "description": "Minimal ViT encoder (dim 192, depth 4, 3 heads); useful as a fast smoke workload.",
+      "embed_dim": 192,
+      "depth": 4,
+      "num_heads": 3,
+      "mlp_ratio": 4,
+      "img_size": 224,
+      "patch_size": 16,
+      "in_chans": 3,
+      "batch": 1
+    }
+  }
+}

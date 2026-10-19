@@ -1,0 +1,15 @@
+# Photonic DSE framework + analytic mirror (minimal).
+#
+# This is everything `python3 main.py ...` actually needs in the default
+# `--mode auto` / `--mode analytic` path.  The framework itself is pure stdlib
+# (the LLM client talks to the API with `urllib`, no `openai` SDK); the only
+# third-party package is PyYAML, used to parse SimPhony's device/design YAML
+# configs under `simphony/configs/`.
+#
+# On Debian/Ubuntu this is usually already satisfied by the system package:
+#     sudo apt install python3-yaml
+#
+# The real SimPhony (torch/torchonn) stack is NOT here — see
+# requirements-real.txt for `--mode real`.
+
+PyYAML>=5.1

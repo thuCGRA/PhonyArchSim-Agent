@@ -1,0 +1,37 @@
+# Real-mode SimPhony dependency set — final resolved state in /home/fyq/epic/.venv-real
+# Python 3.10.22 (uv standalone, at /home/fyq/epic/.tools/python)
+#
+# NOTE: several upstream packages had to be pinned/patched for this hardened,
+# non-root, CPU-only container.  Do NOT re-resolve these without the fixes below.
+
+# --- core ML ---
+torch==1.12.1+cpu            # + GNU_STACK RWE->RW patch (see .tools/patch_gnustack.py)
+torchvision==0.13.1+cpu
+numpy==1.23.5                # pinned <1.24 for torch 1.12 + old mmcv APIs
+
+# --- OpenMMLab (MUST be mmcv 2.x, NOT 1.7: the model zoo registers layers in
+#     mmengine MODELS and calls build_conv_layer, which only uses MODELS in 2.x) ---
+mmcv-lite==2.0.0
+mmengine==0.7.4
+
+# --- SimPhony research deps (2024 commits, torch-1.12-compatible) ---
+torchonn==0.0.8              # git JeremieMelo/pytorch-onn @ cd9de49b (version hardcoded in setup.py)
+torchonn-pyutils==0.0.3.1    # git JeremieMelo/pyutility @ f31eeb5d (setup.py version hardcoded;
+                             #   __init__ patched to skip pyutils.datasets/torchvision)
+
+# --- direct runtime deps ---
+networkx==2.8.8
+multimethod==2.0.2
+pyyaml==6.0
+einops
+matplotlib
+pandas
+scipy
+scienceplots                 # pyutils.plot
+svglib                       # pyutils.plot (pdf_crop)
+opencv-python                # mmengine/mmcv dep
+termcolor                    # mmengine.logging dep
+
+# --- build tooling ---
+setuptools==80.10.2          # <81 so pkg_resources still exists (mmcv build)
+wheel
