@@ -1,0 +1,240 @@
+{
+  "latency": {
+    "LT": {
+      "patch_embed.proj.conv": {
+        "GLB2_input_latency": 2.1600730368e-05,
+        "GLB2_output_latency": 3.624780096e-06,
+        "GLB1_input_latency": 7.101609984e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.0.self_attn.qkv.linear": {
+        "GLB2_input_latency": 8.96948136e-06,
+        "GLB2_output_latency": 1.0929821616e-05,
+        "GLB1_input_latency": 1.775402496e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.0.self_attn.proj.linear": {
+        "GLB2_input_latency": 5.418676368e-06,
+        "GLB2_output_latency": 3.643273872e-06,
+        "GLB1_input_latency": 1.775402496e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.0.self_attn.quantized_matmul.matmul": {
+        "GLB2_input_latency": 1.485772625925e-05,
+        "GLB2_output_latency": 3.643273872e-06,
+        "GLB1_input_latency": 1.821636936e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.0.linear1.linear": {
+        "GLB2_input_latency": 1.0744883856e-05,
+        "GLB2_output_latency": 1.4573095488e-05,
+        "GLB1_input_latency": 1.775402496e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.0.linear2.linear": {
+        "GLB2_input_latency": 2.1674705472e-05,
+        "GLB2_output_latency": 3.643273872e-06,
+        "GLB1_input_latency": 7.101609984e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.1.self_attn.qkv.linear": {
+        "GLB2_input_latency": 8.96948136e-06,
+        "GLB2_output_latency": 1.0929821616e-05,
+        "GLB1_input_latency": 1.775402496e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.1.self_attn.proj.linear": {
+        "GLB2_input_latency": 5.418676368e-06,
+        "GLB2_output_latency": 3.643273872e-06,
+        "GLB1_input_latency": 1.775402496e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.1.self_attn.quantized_matmul.matmul": {
+        "GLB2_input_latency": 1.485772625925e-05,
+        "GLB2_output_latency": 3.643273872e-06,
+        "GLB1_input_latency": 1.821636936e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.1.linear1.linear": {
+        "GLB2_input_latency": 1.0744883856e-05,
+        "GLB2_output_latency": 1.4573095488e-05,
+        "GLB1_input_latency": 1.775402496e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.1.linear2.linear": {
+        "GLB2_input_latency": 2.1674705472e-05,
+        "GLB2_output_latency": 3.643273872e-06,
+        "GLB1_input_latency": 7.101609984e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.2.self_attn.qkv.linear": {
+        "GLB2_input_latency": 8.96948136e-06,
+        "GLB2_output_latency": 1.0929821616e-05,
+        "GLB1_input_latency": 1.775402496e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.2.self_attn.proj.linear": {
+        "GLB2_input_latency": 5.418676368e-06,
+        "GLB2_output_latency": 3.643273872e-06,
+        "GLB1_input_latency": 1.775402496e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.2.self_attn.quantized_matmul.matmul": {
+        "GLB2_input_latency": 1.485772625925e-05,
+        "GLB2_output_latency": 3.643273872e-06,
+        "GLB1_input_latency": 1.821636936e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.2.linear1.linear": {
+        "GLB2_input_latency": 1.0744883856e-05,
+        "GLB2_output_latency": 1.4573095488e-05,
+        "GLB1_input_latency": 1.775402496e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.2.linear2.linear": {
+        "GLB2_input_latency": 2.1674705472e-05,
+        "GLB2_output_latency": 3.643273872e-06,
+        "GLB1_input_latency": 7.101609984e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.3.self_attn.qkv.linear": {
+        "GLB2_input_latency": 8.96948136e-06,
+        "GLB2_output_latency": 1.0929821616e-05,
+        "GLB1_input_latency": 1.775402496e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.3.self_attn.proj.linear": {
+        "GLB2_input_latency": 5.418676368e-06,
+        "GLB2_output_latency": 3.643273872e-06,
+        "GLB1_input_latency": 1.775402496e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.3.self_attn.quantized_matmul.matmul": {
+        "GLB2_input_latency": 1.485772625925e-05,
+        "GLB2_output_latency": 3.643273872e-06,
+        "GLB1_input_latency": 1.821636936e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.3.linear1.linear": {
+        "GLB2_input_latency": 1.0744883856e-05,
+        "GLB2_output_latency": 1.4573095488e-05,
+        "GLB1_input_latency": 1.775402496e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      },
+      "layers.3.linear2.linear": {
+        "GLB2_input_latency": 2.1674705472e-05,
+        "GLB2_output_latency": 3.643273872e-06,
+        "GLB1_input_latency": 7.101609984e-06,
+        "GLB1_output_latency": 3.94533888e-07,
+        "RF_input_latency": 9.246887999999999e-09,
+        "RF_output_latency": 3.94533888e-07
+      }
+    }
+  },
+  "energy": {
+    "LT": {
+      "HBM": 541090368.0,
+      "GLB2": 70214408.29664,
+      "GLB1": 114866869.94944,
+      "RF": 104872230.20885333
+    }
+  },
+  "spec": {
+    "HBM": {
+      "bandwidth": 8192000000000.0,
+      "read_energy": 62.4,
+      "write_energy": 62.4
+    },
+    "GLB2": {
+      "block_size": 8,
+      "cache_size": 485,
+      "bus_width": 64,
+      "total_cache_size": 525740,
+      "bandwidth": 20763742353.103012,
+      "cycle_time": 0.048160875,
+      "access_time": 0.051851875,
+      "number_of_srams": 4,
+      "read_energy": 1.50362,
+      "write_energy": 1.5362,
+      "area": 0.00780287,
+      "height": 0.0659693,
+      "width": 0.11828,
+      "gate_leakage_power": 0.0208221,
+      "leakage_power": 0.00434909
+    },
+    "GLB1": {
+      "block_size": 8,
+      "cache_size": 485,
+      "bus_width": 64,
+      "total_cache_size": 1958430,
+      "bandwidth": 20763742353.103012,
+      "cycle_time": 0.048160875,
+      "access_time": 0.051851875,
+      "number_of_srams": 4038,
+      "read_energy": 1.50362,
+      "write_energy": 1.5362,
+      "area": 0.00780287,
+      "height": 0.0659693,
+      "width": 0.11828,
+      "gate_leakage_power": 0.0208221,
+      "leakage_power": 0.00434909
+    },
+    "RF": {
+      "block_size": 8,
+      "cache_size": 485,
+      "bus_width": 64,
+      "total_cache_size": 1958430,
+      "bandwidth": 20763742353.103012,
+      "cycle_time": 0.048160875,
+      "access_time": 0.051851875,
+      "number_of_srams": 4038,
+      "read_energy": 1.50362,
+      "write_energy": 1.5362,
+      "area": 0.00780287,
+      "height": 0.0659693,
+      "width": 0.11828,
+      "gate_leakage_power": 0.0208221,
+      "leakage_power": 0.00434909
+    }
+  }
+}

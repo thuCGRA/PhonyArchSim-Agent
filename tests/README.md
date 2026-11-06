@@ -19,7 +19,10 @@ python3 tests/run_tests.py
 ```
 
 `tests/run_tests.py` 会先加载顶层 `test_*.py`（领域），再尝试 `import langgraph`：
-可导入则追加 `tests/deep/`，不可导入则打印提示并跳过。当前全量 301 项（领域 183 + deep 118）。
+可导入则追加 `tests/deep/`，不可导入则打印提示并跳过。当前全量 372 项（领域 254 + deep 118）。
+
+> 测试输入一律来自 `tests/fixtures/`（见 `tests/fixtures/README.md`），**不要**读取
+> `runs/` —— 该目录被 `.gitignore` 排除，CI 全新检出时并不存在。
 
 CI 中的调用方式（见 `.github/workflows/ci.yml`）：
 
@@ -36,6 +39,7 @@ tests/
 ├── factory.py              # real 模式 CPU 模型工厂（对外路径 tests.factory:build_<workload>）
 ├── cnn_models.py           # CNN 模型实现（QVGG），被 factory.py 引用
 ├── smoke_real.py           # real 模式手动冒烟脚本（非单元测试）
+├── fixtures/               # 随仓库提交的测试基线（见 fixtures/README.md）
 ├── test_*.py               # 领域测试（见下表）
 └── deep/                   # deep-agent 运行时测试（需要 langgraph）
     ├── __init__.py

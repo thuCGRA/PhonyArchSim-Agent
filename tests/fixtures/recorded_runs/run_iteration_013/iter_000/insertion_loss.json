@@ -1,0 +1,45 @@
+{
+  "LT": {
+    "node_path": [
+      "i0",
+      "i1",
+      "i2",
+      "i3"
+    ],
+    "node_insertion_loss": 1.6600000000000001,
+    "core_path": [
+      "i_dac",
+      "i_laser",
+      "i_mzi_0",
+      "i_mzi_1",
+      "i_mzi_2",
+      "i_mzi_3",
+      "i_mzi_4",
+      "i_mzi_5",
+      "i_mzi_6",
+      "i_mzi_7",
+      "i_mzi_8",
+      "i_mzi_9",
+      "i_mzi_10",
+      "i_mzi_11",
+      "i_mzi_12",
+      "i_mzi_13",
+      "i_mzi_14",
+      "i_mzi_15",
+      "i_pd"
+    ],
+    "core_insertion_loss": 28.560000000000002,
+    "node_component_loss": {
+      "i0": 0.33,
+      "i1": 0.5,
+      "i2": 0.33,
+      "i3": 0.5
+    },
+    "core_component_loss": {
+      "i_dac": 0.0,
+      "i_laser": 2.0,
+      "i_mzi": 26.56,
+      "i_pd": 0.0
+    }
+  }
+}

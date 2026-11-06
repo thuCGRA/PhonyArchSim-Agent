@@ -19,6 +19,11 @@ from photon_tuner.simulators.mesh_model import mesh_topology
 ROOT = Path(__file__).resolve().parents[1]
 SIM_ROOT = str(ROOT / "photon_tuner" / "simulators" / "simphony")
 
+# 录制运行基线：这些 ``energy_detail.json`` 原本来自 ``runs/run_agent/``，
+# 而 ``runs/*`` 被 .gitignore 忽略 —— CI 全新检出时并不存在。因此把所需
+# 起点作为显式 fixture 提交到 tests/fixtures/，测试不再依赖本地运行产物。
+RECORDED_RUNS = ROOT / "tests" / "fixtures" / "recorded_runs"
+
 
 def _mesh_hw(kind, n_modes=4):
     ss = read_json(ROOT / "configs" / "search_space.json")
@@ -269,8 +274,7 @@ class TestBottleneckIsParadigmDependent(unittest.TestCase):
 
     def test_crossbar_is_converter_dominated(self):
         dominant, totals = self._dominant_device(
-            Path(__file__).resolve().parents[1]
-            / "runs/run_agent/run_iteration_007/iter_000/energy_detail.json"
+            RECORDED_RUNS / "run_iteration_007/iter_000/energy_detail.json"
         )
         self.assertIn("dac", dominant.lower())
         share = totals[dominant] / sum(totals.values())
@@ -278,8 +282,7 @@ class TestBottleneckIsParadigmDependent(unittest.TestCase):
 
     def test_mesh_is_laser_dominated(self):
         dominant, totals = self._dominant_device(
-            Path(__file__).resolve().parents[1]
-            / "runs/run_agent/run_iteration_012/iter_000/energy_detail.json"
+            RECORDED_RUNS / "run_iteration_012/iter_000/energy_detail.json"
         )
         self.assertIn("laser", dominant.lower())
         share = totals[dominant] / sum(totals.values())
@@ -287,11 +290,9 @@ class TestBottleneckIsParadigmDependent(unittest.TestCase):
 
     def test_the_two_paradigms_do_not_share_a_root_cause(self):
         crossbar, _ = self._dominant_device(
-            Path(__file__).resolve().parents[1]
-            / "runs/run_agent/run_iteration_007/iter_000/energy_detail.json"
+            RECORDED_RUNS / "run_iteration_007/iter_000/energy_detail.json"
         )
         mesh, _ = self._dominant_device(
-            Path(__file__).resolve().parents[1]
-            / "runs/run_agent/run_iteration_012/iter_000/energy_detail.json"
+            RECORDED_RUNS / "run_iteration_012/iter_000/energy_detail.json"
         )
         self.assertNotEqual(crossbar, mesh)

@@ -1,0 +1,154 @@
+{
+  "by_device": {
+    "LT": {
+      "core_off_chip_laser_0_i_laser-LT_Laser": {
+        "count": 12,
+        "static_power": 232434.16083290344,
+        "dynamic_power": 0,
+        "chip_type": "PIC_2",
+        "tuning_cycles": 1,
+        "static_energy": 23243.416083290344,
+        "dynamic_energy": 0.0,
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 47200683961.330696,
+        "total_energy": 47200683961.330696
+      },
+      "core_photodetector_0_i_pd-LT_PD": {
+        "count": 512,
+        "static_power": 0,
+        "dynamic_power": 1.1,
+        "chip_type": "PIC_1",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.11000000000000001,
+        "total_dynamic_energy": 9493524.480000002,
+        "total_static_energy": 0.0,
+        "total_energy": 9493524.480000002
+      },
+      "core_tia_0_i_tia-TIA_1": {
+        "count": 3840,
+        "static_power": 0,
+        "dynamic_power": 3,
+        "chip_type": "RF_EIC",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.3,
+        "total_dynamic_energy": 194185728.0,
+        "total_static_energy": 0.0,
+        "total_energy": 194185728.0
+      },
+      "core_adc_0_i_adc-ADC_SAR_1": {
+        "count": 960,
+        "static_power": 0,
+        "dynamic_power": 14.8,
+        "chip_type": "RF_EIC",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 1.48,
+        "total_dynamic_energy": 79831910.4,
+        "total_static_energy": 0.0,
+        "total_energy": 79831910.4
+      },
+      "core_dac_0_i_dac-DAC_2": {
+        "count": 512,
+        "static_power": 0,
+        "dynamic_power": 35.714285714285715,
+        "chip_type": "RF_EIC",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 3.5714285714285716,
+        "total_dynamic_energy": 102743771.42857142,
+        "total_static_energy": 0.0,
+        "total_energy": 102743771.42857142
+      },
+      "node_coupler_0_i0-LT_DC_2x2": {
+        "count": 3840,
+        "static_power": 0,
+        "dynamic_power": 0,
+        "chip_type": "off_chip",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.0,
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 0.0,
+        "total_energy": 0.0
+      },
+      "node_phase_shifter_0_i1-IHO_PS": {
+        "count": 3840,
+        "static_power": 9.6,
+        "dynamic_power": 0,
+        "chip_type": "off_chip",
+        "tuning_cycles": 1,
+        "static_energy": 0.96,
+        "dynamic_energy": 0.0,
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 623834726.3999999,
+        "total_energy": 623834726.3999999
+      },
+      "node_coupler_0_i2-LT_DC_2x2": {
+        "count": 3840,
+        "static_power": 0,
+        "dynamic_power": 0,
+        "chip_type": "off_chip",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.0,
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 0.0,
+        "total_energy": 0.0
+      },
+      "node_phase_shifter_0_i3-IHO_PS": {
+        "count": 3840,
+        "static_power": 9.6,
+        "dynamic_power": 0,
+        "chip_type": "off_chip",
+        "tuning_cycles": 1,
+        "static_energy": 0.96,
+        "dynamic_energy": 0.0,
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 623834726.3999999,
+        "total_energy": 623834726.3999999
+      }
+    }
+  },
+  "by_chip_type": {
+    "LT": {
+      "PIC_2": {
+        "devices": [
+          "core_off_chip_laser_0_i_laser-LT_Laser"
+        ],
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 47200683961.330696
+      },
+      "PIC_1": {
+        "devices": [
+          "core_photodetector_0_i_pd-LT_PD"
+        ],
+        "total_dynamic_energy": 9493524.480000002,
+        "total_static_energy": 0.0
+      },
+      "RF_EIC": {
+        "devices": [
+          "core_tia_0_i_tia-TIA_1",
+          "core_adc_0_i_adc-ADC_SAR_1",
+          "core_dac_0_i_dac-DAC_2"
+        ],
+        "total_dynamic_energy": 376761409.8285714,
+        "total_static_energy": 0.0
+      },
+      "off_chip": {
+        "devices": [
+          "node_coupler_0_i0-LT_DC_2x2",
+          "node_phase_shifter_0_i1-IHO_PS",
+          "node_coupler_0_i2-LT_DC_2x2",
+          "node_phase_shifter_0_i3-IHO_PS"
+        ],
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 1247669452.7999997
+      }
+    }
+  },
+  "total": {
+    "LT": 48834608348.43928
+  }
+}

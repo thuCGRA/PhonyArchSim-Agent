@@ -1,0 +1,114 @@
+{
+  "by_device": {
+    "LT": {
+      "core_off_chip_laser_0_i_laser-LT_Laser": {
+        "count": 12,
+        "area": 120000,
+        "chip_type": "PIC_2",
+        "width": 300,
+        "length": 400,
+        "total_area": 1440000
+      },
+      "core_photodetector_0_i_pd-LT_PD": {
+        "count": 512,
+        "area": 40,
+        "chip_type": "PIC_1",
+        "width": 10,
+        "length": 4,
+        "total_area": 20480
+      },
+      "core_tia_0_i_tia-TIA_1": {
+        "count": 3840,
+        "area": 50,
+        "chip_type": "RF_EIC",
+        "width": 7.0710678118654755,
+        "length": 7.0710678118654755,
+        "total_area": 192000
+      },
+      "core_adc_0_i_adc-ADC_SAR_1": {
+        "count": 960,
+        "area": 2850,
+        "chip_type": "RF_EIC",
+        "width": 53.38539126015655,
+        "length": 53.38539126015655,
+        "total_area": 2736000
+      },
+      "core_dac_0_i_dac-DAC_2": {
+        "count": 512,
+        "area": 11000,
+        "chip_type": "RF_EIC",
+        "width": 104.88088481701516,
+        "length": 104.88088481701516,
+        "total_area": 5632000
+      },
+      "node_coupler_0_i0-LT_DC_2x2": {
+        "count": 3840,
+        "area": 12.6,
+        "chip_type": "off_chip",
+        "width": 2.4,
+        "length": 5.25,
+        "total_area": 48384.0
+      },
+      "node_phase_shifter_0_i1-IHO_PS": {
+        "count": 3840,
+        "area": 5.5,
+        "chip_type": "off_chip",
+        "width": 0.55,
+        "length": 10,
+        "total_area": 21120.0
+      },
+      "node_coupler_0_i2-LT_DC_2x2": {
+        "count": 3840,
+        "area": 12.6,
+        "chip_type": "off_chip",
+        "width": 2.4,
+        "length": 5.25,
+        "total_area": 48384.0
+      },
+      "node_phase_shifter_0_i3-IHO_PS": {
+        "count": 3840,
+        "area": 5.5,
+        "chip_type": "off_chip",
+        "width": 0.55,
+        "length": 10,
+        "total_area": 21120.0
+      },
+      "node": {
+        "area": 1677.0000000000002,
+        "width": 30,
+        "length": 55.900000000000006,
+        "count": 3840,
+        "chip_type": "PIC_1",
+        "total_area": 6439680.000000001
+      }
+    }
+  },
+  "by_chip_type": {
+    "LT": {
+      "PIC_2": {
+        "devices": [
+          "core_off_chip_laser_0_i_laser-LT_Laser"
+        ],
+        "total_area": 1440000
+      },
+      "PIC_1": {
+        "devices": [
+          "core_photodetector_0_i_pd-LT_PD",
+          "node"
+        ],
+        "total_area": 6460160.000000001
+      },
+      "RF_EIC": {
+        "devices": [
+          "core_tia_0_i_tia-TIA_1",
+          "core_adc_0_i_adc-ADC_SAR_1",
+          "core_dac_0_i_dac-DAC_2"
+        ],
+        "total_area": 8560000
+      }
+    }
+  },
+  "total": {
+    "LT": 23038848.0
+  }
+}

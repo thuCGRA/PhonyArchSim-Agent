@@ -1,0 +1,245 @@
+{
+  "by_device": {
+    "LT": {
+      "core_mzm_0_i0-LT_MZM": {
+        "count": 8192,
+        "static_power": 0,
+        "dynamic_power": 4.5,
+        "chip_type": "PIC_1",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.45,
+        "total_dynamic_energy": 39414988.8,
+        "total_static_energy": 0.0,
+        "total_energy": 39414988.8
+      },
+      "core_dac_0_i1-DAC_2": {
+        "count": 8192,
+        "static_power": 0,
+        "dynamic_power": 35.714285714285715,
+        "chip_type": "RF_EIC",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 3.5714285714285716,
+        "total_dynamic_energy": 312817371.42857146,
+        "total_static_energy": 0.0,
+        "total_energy": 312817371.42857146
+      },
+      "core_adc_0_i2-ADC_SAR_1": {
+        "count": 2048,
+        "static_power": 0,
+        "dynamic_power": 14.8,
+        "chip_type": "off_chip",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 1.48,
+        "total_dynamic_energy": 10802626.560000002,
+        "total_static_energy": 0.0,
+        "total_energy": 10802626.560000002
+      },
+      "core_mrr_rerouter_0_i3-LT_MRR_REROUTER": {
+        "count": 32768,
+        "static_power": 0.275,
+        "dynamic_power": 0,
+        "chip_type": "off_chip",
+        "tuning_cycles": 1,
+        "static_energy": 0.027500000000000004,
+        "dynamic_energy": 0.0,
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 10231316.48,
+        "total_energy": 10231316.48
+      },
+      "core_on_chip_laser_0_i4-Customized_Laser": {
+        "count": 12,
+        "static_power": 4821.780380584309,
+        "dynamic_power": 0,
+        "chip_type": "off_chip",
+        "tuning_cycles": 1,
+        "static_energy": 482.17803805843084,
+        "dynamic_energy": 0.0,
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 65695793.32938507,
+        "total_energy": 65695793.32938507
+      },
+      "core_micro_comb_0_i5-LT_Micro_Comb": {
+        "count": 12,
+        "static_power": 0,
+        "dynamic_power": 0,
+        "chip_type": "RF_EIC",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.0,
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 0.0,
+        "total_energy": 0.0
+      },
+      "core_laser_splitter_0_i6-Customized_Laser_Splitter": {
+        "count": 960,
+        "static_power": 0,
+        "dynamic_power": 0,
+        "chip_type": "PIC_2",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.0,
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 0.0,
+        "total_energy": 0.0
+      },
+      "core_tia_0_i8-TIA_1": {
+        "count": 8192,
+        "static_power": 0,
+        "dynamic_power": 3,
+        "chip_type": "RF_EIC",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.3,
+        "total_dynamic_energy": 8758886.4,
+        "total_static_energy": 0.0,
+        "total_energy": 8758886.4
+      },
+      "core_mzm_0_i9-LT_MZM": {
+        "count": 1024,
+        "static_power": 0,
+        "dynamic_power": 4.5,
+        "chip_type": "PIC_2",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.45,
+        "total_dynamic_energy": 4926873.6,
+        "total_static_energy": 0.0,
+        "total_energy": 4926873.6
+      },
+      "core_dac_0_i10-DAC_2": {
+        "count": 1024,
+        "static_power": 0,
+        "dynamic_power": 35.714285714285715,
+        "chip_type": "off_chip",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 3.5714285714285716,
+        "total_dynamic_energy": 39102171.42857143,
+        "total_static_energy": 0.0,
+        "total_energy": 39102171.42857143
+      },
+      "node_phase_shifter_0_i0-MEMS_PS": {
+        "count": 8192,
+        "static_power": 0,
+        "dynamic_power": 0,
+        "chip_type": "off_chip",
+        "tuning_cycles": 20000.0,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.0,
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 0.0,
+        "total_energy": 0.0
+      },
+      "node_coupler_0_i1-LT_DC_2x2": {
+        "count": 8192,
+        "static_power": 0,
+        "dynamic_power": 0,
+        "chip_type": "off_chip",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.0,
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 0.0,
+        "total_energy": 0.0
+      },
+      "node_photodetector_0_i2-LT_PD": {
+        "count": 8192,
+        "static_power": 0,
+        "dynamic_power": 1.1,
+        "chip_type": "off_chip",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.11000000000000001,
+        "total_dynamic_energy": 9634775.040000003,
+        "total_static_energy": 0.0,
+        "total_energy": 9634775.040000003
+      },
+      "node_photodetector_0_i3-LT_PD": {
+        "count": 8192,
+        "static_power": 0,
+        "dynamic_power": 1.1,
+        "chip_type": "off_chip",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.11000000000000001,
+        "total_dynamic_energy": 9634775.040000003,
+        "total_static_energy": 0.0,
+        "total_energy": 9634775.040000003
+      },
+      "node_coupler_0_i4-LT_DC_2x2": {
+        "count": 8192,
+        "static_power": 0,
+        "dynamic_power": 0,
+        "chip_type": "off_chip",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.0,
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 0.0,
+        "total_energy": 0.0
+      },
+      "node_y_branch_0_i5-LT_Y_Branch": {
+        "count": 8192,
+        "static_power": 0,
+        "dynamic_power": 0,
+        "chip_type": "off_chip",
+        "tuning_cycles": 1,
+        "static_energy": 0.0,
+        "dynamic_energy": 0.0,
+        "total_dynamic_energy": 0.0,
+        "total_static_energy": 0.0,
+        "total_energy": 0.0
+      }
+    }
+  },
+  "by_chip_type": {
+    "LT": {
+      "PIC_1": {
+        "devices": [
+          "core_mzm_0_i0-LT_MZM"
+        ],
+        "total_dynamic_energy": 39414988.8,
+        "total_static_energy": 0.0
+      },
+      "RF_EIC": {
+        "devices": [
+          "core_dac_0_i1-DAC_2",
+          "core_micro_comb_0_i5-LT_Micro_Comb",
+          "core_tia_0_i8-TIA_1"
+        ],
+        "total_dynamic_energy": 321576257.82857144,
+        "total_static_energy": 0.0
+      },
+      "off_chip": {
+        "devices": [
+          "core_adc_0_i2-ADC_SAR_1",
+          "core_mrr_rerouter_0_i3-LT_MRR_REROUTER",
+          "core_on_chip_laser_0_i4-Customized_Laser",
+          "core_dac_0_i10-DAC_2",
+          "node_phase_shifter_0_i0-MEMS_PS",
+          "node_coupler_0_i1-LT_DC_2x2",
+          "node_photodetector_0_i2-LT_PD",
+          "node_photodetector_0_i3-LT_PD",
+          "node_coupler_0_i4-LT_DC_2x2",
+          "node_y_branch_0_i5-LT_Y_Branch"
+        ],
+        "total_dynamic_energy": 69174348.06857145,
+        "total_static_energy": 75927109.80938508
+      },
+      "PIC_2": {
+        "devices": [
+          "core_laser_splitter_0_i6-Customized_Laser_Splitter",
+          "core_mzm_0_i9-LT_MZM"
+        ],
+        "total_dynamic_energy": 4926873.6,
+        "total_static_energy": 0.0
+      }
+    }
+  },
+  "total": {
+    "LT": 511019578.10652804
+  }
+}

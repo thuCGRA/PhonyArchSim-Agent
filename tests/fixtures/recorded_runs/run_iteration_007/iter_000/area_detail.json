@@ -1,0 +1,180 @@
+{
+  "by_device": {
+    "LT": {
+      "core_mzm_0_i0-LT_MZM": {
+        "count": 8192,
+        "area": 5200,
+        "chip_type": "PIC_1",
+        "width": 20,
+        "length": 260,
+        "total_area": 42598400
+      },
+      "core_dac_0_i1-DAC_2": {
+        "count": 8192,
+        "area": 11000,
+        "chip_type": "RF_EIC",
+        "width": 104.88088481701516,
+        "length": 104.88088481701516,
+        "total_area": 90112000
+      },
+      "core_adc_0_i2-ADC_SAR_1": {
+        "count": 2048,
+        "area": 2850,
+        "chip_type": "off_chip",
+        "width": 53.38539126015655,
+        "length": 53.38539126015655,
+        "total_area": 5836800
+      },
+      "core_mrr_rerouter_0_i3-LT_MRR_REROUTER": {
+        "count": 32768,
+        "area": 23.04,
+        "chip_type": "off_chip",
+        "width": 4.8,
+        "length": 4.8,
+        "total_area": 754974.72
+      },
+      "core_on_chip_laser_0_i4-Customized_Laser": {
+        "count": 12,
+        "area": 120000,
+        "chip_type": "off_chip",
+        "width": 300,
+        "length": 400,
+        "total_area": 1440000
+      },
+      "core_micro_comb_0_i5-LT_Micro_Comb": {
+        "count": 12,
+        "area": 1401856,
+        "chip_type": "RF_EIC",
+        "width": 1184,
+        "length": 1184,
+        "total_area": 16822272
+      },
+      "core_laser_splitter_0_i6-Customized_Laser_Splitter": {
+        "count": 960,
+        "area": 2.3400000000000003,
+        "chip_type": "PIC_2",
+        "width": 1.3,
+        "length": 1.8,
+        "total_area": 2246.4
+      },
+      "core_tia_0_i8-TIA_1": {
+        "count": 8192,
+        "area": 50,
+        "chip_type": "RF_EIC",
+        "width": 7.0710678118654755,
+        "length": 7.0710678118654755,
+        "total_area": 409600
+      },
+      "core_mzm_0_i9-LT_MZM": {
+        "count": 1024,
+        "area": 5200,
+        "chip_type": "PIC_2",
+        "width": 20,
+        "length": 260,
+        "total_area": 5324800
+      },
+      "core_dac_0_i10-DAC_2": {
+        "count": 1024,
+        "area": 11000,
+        "chip_type": "off_chip",
+        "width": 104.88088481701516,
+        "length": 104.88088481701516,
+        "total_area": 11264000
+      },
+      "node_phase_shifter_0_i0-MEMS_PS": {
+        "count": 8192,
+        "area": 4500,
+        "chip_type": "off_chip",
+        "width": 45,
+        "length": 100,
+        "total_area": 36864000
+      },
+      "node_coupler_0_i1-LT_DC_2x2": {
+        "count": 8192,
+        "area": 12.6,
+        "chip_type": "off_chip",
+        "width": 2.4,
+        "length": 5.25,
+        "total_area": 103219.2
+      },
+      "node_photodetector_0_i2-LT_PD": {
+        "count": 8192,
+        "area": 40,
+        "chip_type": "off_chip",
+        "width": 10,
+        "length": 4,
+        "total_area": 327680
+      },
+      "node_photodetector_0_i3-LT_PD": {
+        "count": 8192,
+        "area": 40,
+        "chip_type": "off_chip",
+        "width": 10,
+        "length": 4,
+        "total_area": 327680
+      },
+      "node_coupler_0_i4-LT_DC_2x2": {
+        "count": 8192,
+        "area": 12.6,
+        "chip_type": "off_chip",
+        "width": 2.4,
+        "length": 5.25,
+        "total_area": 103219.2
+      },
+      "node_y_branch_0_i5-LT_Y_Branch": {
+        "count": 8192,
+        "area": 2.3400000000000003,
+        "chip_type": "off_chip",
+        "width": 1.3,
+        "length": 1.8,
+        "total_area": 19169.280000000002
+      },
+      "node": {
+        "area": 11688.0,
+        "width": 120,
+        "length": 97.4,
+        "count": 8192,
+        "chip_type": "PIC_1",
+        "total_area": 95748096.0
+      }
+    }
+  },
+  "by_chip_type": {
+    "LT": {
+      "PIC_1": {
+        "devices": [
+          "core_mzm_0_i0-LT_MZM",
+          "node"
+        ],
+        "total_area": 138346496.0
+      },
+      "RF_EIC": {
+        "devices": [
+          "core_dac_0_i1-DAC_2",
+          "core_micro_comb_0_i5-LT_Micro_Comb",
+          "core_tia_0_i8-TIA_1"
+        ],
+        "total_area": 107343872
+      },
+      "off_chip": {
+        "devices": [
+          "core_adc_0_i2-ADC_SAR_1",
+          "core_mrr_rerouter_0_i3-LT_MRR_REROUTER",
+          "core_on_chip_laser_0_i4-Customized_Laser",
+          "core_dac_0_i10-DAC_2"
+        ],
+        "total_area": 19295774.72
+      },
+      "PIC_2": {
+        "devices": [
+          "core_laser_splitter_0_i6-Customized_Laser_Splitter",
+          "core_mzm_0_i9-LT_MZM"
+        ],
+        "total_area": 5327046.4
+      }
+    }
+  },
+  "total": {
+    "LT": 403806252.79999995
+  }
+}

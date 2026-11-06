@@ -434,8 +434,10 @@ class TestTopologyEvidenceBundle(unittest.TestCase):
         from photon_tuner.toolbox.device_tools.metrics import summarize_topology_evidence
 
         root = Path(__file__).resolve().parents[2]
-        run = root / "runs/run_agent/run_iteration_013/iter_000"
-        self.assertTrue(run.is_dir(), "needs the recorded mesh baseline")
+        # 录制基线随仓库提交在 tests/fixtures/ 下；原先的 runs/run_agent/ 被
+        # .gitignore 忽略，CI 全新检出时不存在，会直接让本组测试失效。
+        run = root / "tests/fixtures/recorded_runs/run_iteration_013/iter_000"
+        self.assertTrue(run.is_dir(), "needs the recorded mesh baseline (tests/fixtures/recorded_runs)")
         hw = normalize_hardware_to_design_space(
             read_json(root / "configs" / "initial_hardware_mesh.json"),
             read_json(root / "configs" / "search_space.json"),

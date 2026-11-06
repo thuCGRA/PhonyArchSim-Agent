@@ -1,0 +1,1299 @@
+{
+  "metadata": {
+    "simulator": "SimPhony",
+    "params": {
+      "nn_model": "QBertViTBase",
+      "onn_conversion_cfg": null,
+      "nn_conversion_cfg": "configs/nn_mapping/simple_transformer.yml",
+      "onn_model": null,
+      "model2arch_map_cfg": "configs/architecture_mapping/simple_lt_transformer.yml",
+      "log_path": "./runs/run_iteration_013/iter_000/simphony.log",
+      "devicelib_root": "./photon_tuner/simulators/simphony/configs/devices",
+      "device_cfg_files": [
+        "*/*.yml"
+      ],
+      "arch_cfg_file": "./photon_tuner/simulators/simphony/configs/design/architectures/LT_hetero.yml",
+      "arch_version": "v1",
+      "input_shape": [
+        2,
+        3,
+        224,
+        224
+      ]
+    }
+  },
+  "workload": {
+    "partition_cycles": {
+      "LT": {
+        "patch_embed.proj.conv": [
+          2,
+          768,
+          7,
+          192,
+          768,
+          392,
+          1,
+          1
+        ],
+        "layers.0.self_attn.qkv.linear": [
+          5,
+          192,
+          7,
+          576,
+          192,
+          394,
+          1,
+          1
+        ],
+        "layers.0.self_attn.proj.linear": [
+          2,
+          192,
+          7,
+          192,
+          192,
+          394,
+          1,
+          1
+        ],
+        "layers.0.self_attn.quantized_matmul.matmul": [
+          3,
+          197,
+          19,
+          384,
+          197,
+          1182,
+          1,
+          1
+        ],
+        "layers.0.linear1.linear": [
+          6,
+          192,
+          7,
+          768,
+          192,
+          394,
+          1,
+          1
+        ],
+        "layers.0.linear2.linear": [
+          2,
+          768,
+          7,
+          192,
+          768,
+          394,
+          1,
+          1
+        ],
+        "layers.1.self_attn.qkv.linear": [
+          5,
+          192,
+          7,
+          576,
+          192,
+          394,
+          1,
+          1
+        ],
+        "layers.1.self_attn.proj.linear": [
+          2,
+          192,
+          7,
+          192,
+          192,
+          394,
+          1,
+          1
+        ],
+        "layers.1.self_attn.quantized_matmul.matmul": [
+          3,
+          197,
+          19,
+          384,
+          197,
+          1182,
+          1,
+          1
+        ],
+        "layers.1.linear1.linear": [
+          6,
+          192,
+          7,
+          768,
+          192,
+          394,
+          1,
+          1
+        ],
+        "layers.1.linear2.linear": [
+          2,
+          768,
+          7,
+          192,
+          768,
+          394,
+          1,
+          1
+        ],
+        "layers.2.self_attn.qkv.linear": [
+          5,
+          192,
+          7,
+          576,
+          192,
+          394,
+          1,
+          1
+        ],
+        "layers.2.self_attn.proj.linear": [
+          2,
+          192,
+          7,
+          192,
+          192,
+          394,
+          1,
+          1
+        ],
+        "layers.2.self_attn.quantized_matmul.matmul": [
+          3,
+          197,
+          19,
+          384,
+          197,
+          1182,
+          1,
+          1
+        ],
+        "layers.2.linear1.linear": [
+          6,
+          192,
+          7,
+          768,
+          192,
+          394,
+          1,
+          1
+        ],
+        "layers.2.linear2.linear": [
+          2,
+          768,
+          7,
+          192,
+          768,
+          394,
+          1,
+          1
+        ],
+        "layers.3.self_attn.qkv.linear": [
+          5,
+          192,
+          7,
+          576,
+          192,
+          394,
+          1,
+          1
+        ],
+        "layers.3.self_attn.proj.linear": [
+          2,
+          192,
+          7,
+          192,
+          192,
+          394,
+          1,
+          1
+        ],
+        "layers.3.self_attn.quantized_matmul.matmul": [
+          3,
+          197,
+          19,
+          384,
+          197,
+          1182,
+          1,
+          1
+        ],
+        "layers.3.linear1.linear": [
+          6,
+          192,
+          7,
+          768,
+          192,
+          394,
+          1,
+          1
+        ],
+        "layers.3.linear2.linear": [
+          2,
+          768,
+          7,
+          192,
+          768,
+          394,
+          1,
+          1
+        ]
+      }
+    },
+    "layer_sizes": {
+      "patch_embed.proj.conv": {
+        "input_size": [
+          301056.0,
+          8
+        ],
+        "output_size": [
+          75264.0,
+          8
+        ],
+        "weight_size": [
+          147456.0,
+          8
+        ],
+        "total_size": 523776.0
+      },
+      "layers.0.self_attn.qkv.linear": {
+        "input_size": [
+          75648.0,
+          8
+        ],
+        "output_size": [
+          226944.0,
+          8
+        ],
+        "weight_size": [
+          110592.0,
+          8
+        ],
+        "total_size": 413184.0
+      },
+      "layers.0.self_attn.proj.linear": {
+        "input_size": [
+          75648.0,
+          8
+        ],
+        "output_size": [
+          75648.0,
+          8
+        ],
+        "weight_size": [
+          36864.0,
+          8
+        ],
+        "total_size": 188160.0
+      },
+      "layers.0.self_attn.quantized_matmul.matmul": {
+        "input_size": [
+          232854.0,
+          8
+        ],
+        "output_size": [
+          75648.0,
+          8
+        ],
+        "weight_size": [
+          75648.0,
+          8
+        ],
+        "total_size": 384150.0
+      },
+      "layers.0.linear1.linear": {
+        "input_size": [
+          75648.0,
+          8
+        ],
+        "output_size": [
+          302592.0,
+          8
+        ],
+        "weight_size": [
+          147456.0,
+          8
+        ],
+        "total_size": 525696.0
+      },
+      "layers.0.linear2.linear": {
+        "input_size": [
+          302592.0,
+          8
+        ],
+        "output_size": [
+          75648.0,
+          8
+        ],
+        "weight_size": [
+          147456.0,
+          8
+        ],
+        "total_size": 525696.0
+      },
+      "layers.1.self_attn.qkv.linear": {
+        "input_size": [
+          75648.0,
+          8
+        ],
+        "output_size": [
+          226944.0,
+          8
+        ],
+        "weight_size": [
+          110592.0,
+          8
+        ],
+        "total_size": 413184.0
+      },
+      "layers.1.self_attn.proj.linear": {
+        "input_size": [
+          75648.0,
+          8
+        ],
+        "output_size": [
+          75648.0,
+          8
+        ],
+        "weight_size": [
+          36864.0,
+          8
+        ],
+        "total_size": 188160.0
+      },
+      "layers.1.self_attn.quantized_matmul.matmul": {
+        "input_size": [
+          232854.0,
+          8
+        ],
+        "output_size": [
+          75648.0,
+          8
+        ],
+        "weight_size": [
+          75648.0,
+          8
+        ],
+        "total_size": 384150.0
+      },
+      "layers.1.linear1.linear": {
+        "input_size": [
+          75648.0,
+          8
+        ],
+        "output_size": [
+          302592.0,
+          8
+        ],
+        "weight_size": [
+          147456.0,
+          8
+        ],
+        "total_size": 525696.0
+      },
+      "layers.1.linear2.linear": {
+        "input_size": [
+          302592.0,
+          8
+        ],
+        "output_size": [
+          75648.0,
+          8
+        ],
+        "weight_size": [
+          147456.0,
+          8
+        ],
+        "total_size": 525696.0
+      },
+      "layers.2.self_attn.qkv.linear": {
+        "input_size": [
+          75648.0,
+          8
+        ],
+        "output_size": [
+          226944.0,
+          8
+        ],
+        "weight_size": [
+          110592.0,
+          8
+        ],
+        "total_size": 413184.0
+      },
+      "layers.2.self_attn.proj.linear": {
+        "input_size": [
+          75648.0,
+          8
+        ],
+        "output_size": [
+          75648.0,
+          8
+        ],
+        "weight_size": [
+          36864.0,
+          8
+        ],
+        "total_size": 188160.0
+      },
+      "layers.2.self_attn.quantized_matmul.matmul": {
+        "input_size": [
+          232854.0,
+          8
+        ],
+        "output_size": [
+          75648.0,
+          8
+        ],
+        "weight_size": [
+          75648.0,
+          8
+        ],
+        "total_size": 384150.0
+      },
+      "layers.2.linear1.linear": {
+        "input_size": [
+          75648.0,
+          8
+        ],
+        "output_size": [
+          302592.0,
+          8
+        ],
+        "weight_size": [
+          147456.0,
+          8
+        ],
+        "total_size": 525696.0
+      },
+      "layers.2.linear2.linear": {
+        "input_size": [
+          302592.0,
+          8
+        ],
+        "output_size": [
+          75648.0,
+          8
+        ],
+        "weight_size": [
+          147456.0,
+          8
+        ],
+        "total_size": 525696.0
+      },
+      "layers.3.self_attn.qkv.linear": {
+        "input_size": [
+          75648.0,
+          8
+        ],
+        "output_size": [
+          226944.0,
+          8
+        ],
+        "weight_size": [
+          110592.0,
+          8
+        ],
+        "total_size": 413184.0
+      },
+      "layers.3.self_attn.proj.linear": {
+        "input_size": [
+          75648.0,
+          8
+        ],
+        "output_size": [
+          75648.0,
+          8
+        ],
+        "weight_size": [
+          36864.0,
+          8
+        ],
+        "total_size": 188160.0
+      },
+      "layers.3.self_attn.quantized_matmul.matmul": {
+        "input_size": [
+          232854.0,
+          8
+        ],
+        "output_size": [
+          75648.0,
+          8
+        ],
+        "weight_size": [
+          75648.0,
+          8
+        ],
+        "total_size": 384150.0
+      },
+      "layers.3.linear1.linear": {
+        "input_size": [
+          75648.0,
+          8
+        ],
+        "output_size": [
+          302592.0,
+          8
+        ],
+        "weight_size": [
+          147456.0,
+          8
+        ],
+        "total_size": 525696.0
+      },
+      "layers.3.linear2.linear": {
+        "input_size": [
+          302592.0,
+          8
+        ],
+        "output_size": [
+          75648.0,
+          8
+        ],
+        "weight_size": [
+          147456.0,
+          8
+        ],
+        "total_size": 525696.0
+      }
+    }
+  },
+  "insertion_loss": {
+    "LT": {
+      "node_path": [
+        "i0",
+        "i1",
+        "i2",
+        "i3"
+      ],
+      "node_insertion_loss": 1.6600000000000001,
+      "core_path": [
+        "i_dac",
+        "i_laser",
+        "i_mzi_0",
+        "i_mzi_1",
+        "i_mzi_2",
+        "i_mzi_3",
+        "i_mzi_4",
+        "i_mzi_5",
+        "i_mzi_6",
+        "i_mzi_7",
+        "i_mzi_8",
+        "i_mzi_9",
+        "i_mzi_10",
+        "i_mzi_11",
+        "i_mzi_12",
+        "i_mzi_13",
+        "i_mzi_14",
+        "i_mzi_15",
+        "i_pd"
+      ],
+      "core_insertion_loss": 28.560000000000002,
+      "node_component_loss": {
+        "i0": 0.33,
+        "i1": 0.5,
+        "i2": 0.33,
+        "i3": 0.5
+      },
+      "core_component_loss": {
+        "i_dac": 0.0,
+        "i_laser": 2.0,
+        "i_mzi": 26.56,
+        "i_pd": 0.0
+      }
+    }
+  },
+  "energy": {
+    "by_device": {
+      "LT": {
+        "core_off_chip_laser_0_i_laser-LT_Laser": {
+          "count": 12,
+          "static_power": 232434.16083290344,
+          "dynamic_power": 0,
+          "chip_type": "PIC_2",
+          "tuning_cycles": 1,
+          "static_energy": 23243.416083290344,
+          "dynamic_energy": 0.0,
+          "total_dynamic_energy": 0.0,
+          "total_static_energy": 47200683961.330696,
+          "total_energy": 47200683961.330696
+        },
+        "core_photodetector_0_i_pd-LT_PD": {
+          "count": 512,
+          "static_power": 0,
+          "dynamic_power": 1.1,
+          "chip_type": "PIC_1",
+          "tuning_cycles": 1,
+          "static_energy": 0.0,
+          "dynamic_energy": 0.11000000000000001,
+          "total_dynamic_energy": 9493524.480000002,
+          "total_static_energy": 0.0,
+          "total_energy": 9493524.480000002
+        },
+        "core_tia_0_i_tia-TIA_1": {
+          "count": 3840,
+          "static_power": 0,
+          "dynamic_power": 3,
+          "chip_type": "RF_EIC",
+          "tuning_cycles": 1,
+          "static_energy": 0.0,
+          "dynamic_energy": 0.3,
+          "total_dynamic_energy": 194185728.0,
+          "total_static_energy": 0.0,
+          "total_energy": 194185728.0
+        },
+        "core_adc_0_i_adc-ADC_SAR_1": {
+          "count": 960,
+          "static_power": 0,
+          "dynamic_power": 14.8,
+          "chip_type": "RF_EIC",
+          "tuning_cycles": 1,
+          "static_energy": 0.0,
+          "dynamic_energy": 1.48,
+          "total_dynamic_energy": 79831910.4,
+          "total_static_energy": 0.0,
+          "total_energy": 79831910.4
+        },
+        "core_dac_0_i_dac-DAC_2": {
+          "count": 512,
+          "static_power": 0,
+          "dynamic_power": 35.714285714285715,
+          "chip_type": "RF_EIC",
+          "tuning_cycles": 1,
+          "static_energy": 0.0,
+          "dynamic_energy": 3.5714285714285716,
+          "total_dynamic_energy": 102743771.42857142,
+          "total_static_energy": 0.0,
+          "total_energy": 102743771.42857142
+        },
+        "node_coupler_0_i0-LT_DC_2x2": {
+          "count": 3840,
+          "static_power": 0,
+          "dynamic_power": 0,
+          "chip_type": "off_chip",
+          "tuning_cycles": 1,
+          "static_energy": 0.0,
+          "dynamic_energy": 0.0,
+          "total_dynamic_energy": 0.0,
+          "total_static_energy": 0.0,
+          "total_energy": 0.0
+        },
+        "node_phase_shifter_0_i1-IHO_PS": {
+          "count": 3840,
+          "static_power": 9.6,
+          "dynamic_power": 0,
+          "chip_type": "off_chip",
+          "tuning_cycles": 1,
+          "static_energy": 0.96,
+          "dynamic_energy": 0.0,
+          "total_dynamic_energy": 0.0,
+          "total_static_energy": 623834726.3999999,
+          "total_energy": 623834726.3999999
+        },
+        "node_coupler_0_i2-LT_DC_2x2": {
+          "count": 3840,
+          "static_power": 0,
+          "dynamic_power": 0,
+          "chip_type": "off_chip",
+          "tuning_cycles": 1,
+          "static_energy": 0.0,
+          "dynamic_energy": 0.0,
+          "total_dynamic_energy": 0.0,
+          "total_static_energy": 0.0,
+          "total_energy": 0.0
+        },
+        "node_phase_shifter_0_i3-IHO_PS": {
+          "count": 3840,
+          "static_power": 9.6,
+          "dynamic_power": 0,
+          "chip_type": "off_chip",
+          "tuning_cycles": 1,
+          "static_energy": 0.96,
+          "dynamic_energy": 0.0,
+          "total_dynamic_energy": 0.0,
+          "total_static_energy": 623834726.3999999,
+          "total_energy": 623834726.3999999
+        }
+      }
+    },
+    "by_chip_type": {
+      "LT": {
+        "PIC_2": {
+          "devices": [
+            "core_off_chip_laser_0_i_laser-LT_Laser"
+          ],
+          "total_dynamic_energy": 0.0,
+          "total_static_energy": 47200683961.330696
+        },
+        "PIC_1": {
+          "devices": [
+            "core_photodetector_0_i_pd-LT_PD"
+          ],
+          "total_dynamic_energy": 9493524.480000002,
+          "total_static_energy": 0.0
+        },
+        "RF_EIC": {
+          "devices": [
+            "core_tia_0_i_tia-TIA_1",
+            "core_adc_0_i_adc-ADC_SAR_1",
+            "core_dac_0_i_dac-DAC_2"
+          ],
+          "total_dynamic_energy": 376761409.8285714,
+          "total_static_energy": 0.0
+        },
+        "off_chip": {
+          "devices": [
+            "node_coupler_0_i0-LT_DC_2x2",
+            "node_phase_shifter_0_i1-IHO_PS",
+            "node_coupler_0_i2-LT_DC_2x2",
+            "node_phase_shifter_0_i3-IHO_PS"
+          ],
+          "total_dynamic_energy": 0.0,
+          "total_static_energy": 1247669452.7999997
+        }
+      }
+    },
+    "total": {
+      "LT": 48834608348.43928
+    }
+  },
+  "area": {
+    "by_device": {
+      "LT": {
+        "core_off_chip_laser_0_i_laser-LT_Laser": {
+          "count": 12,
+          "area": 120000,
+          "chip_type": "PIC_2",
+          "width": 300,
+          "length": 400,
+          "total_area": 1440000
+        },
+        "core_photodetector_0_i_pd-LT_PD": {
+          "count": 512,
+          "area": 40,
+          "chip_type": "PIC_1",
+          "width": 10,
+          "length": 4,
+          "total_area": 20480
+        },
+        "core_tia_0_i_tia-TIA_1": {
+          "count": 3840,
+          "area": 50,
+          "chip_type": "RF_EIC",
+          "width": 7.0710678118654755,
+          "length": 7.0710678118654755,
+          "total_area": 192000
+        },
+        "core_adc_0_i_adc-ADC_SAR_1": {
+          "count": 960,
+          "area": 2850,
+          "chip_type": "RF_EIC",
+          "width": 53.38539126015655,
+          "length": 53.38539126015655,
+          "total_area": 2736000
+        },
+        "core_dac_0_i_dac-DAC_2": {
+          "count": 512,
+          "area": 11000,
+          "chip_type": "RF_EIC",
+          "width": 104.88088481701516,
+          "length": 104.88088481701516,
+          "total_area": 5632000
+        },
+        "node_coupler_0_i0-LT_DC_2x2": {
+          "count": 3840,
+          "area": 12.6,
+          "chip_type": "off_chip",
+          "width": 2.4,
+          "length": 5.25,
+          "total_area": 48384.0
+        },
+        "node_phase_shifter_0_i1-IHO_PS": {
+          "count": 3840,
+          "area": 5.5,
+          "chip_type": "off_chip",
+          "width": 0.55,
+          "length": 10,
+          "total_area": 21120.0
+        },
+        "node_coupler_0_i2-LT_DC_2x2": {
+          "count": 3840,
+          "area": 12.6,
+          "chip_type": "off_chip",
+          "width": 2.4,
+          "length": 5.25,
+          "total_area": 48384.0
+        },
+        "node_phase_shifter_0_i3-IHO_PS": {
+          "count": 3840,
+          "area": 5.5,
+          "chip_type": "off_chip",
+          "width": 0.55,
+          "length": 10,
+          "total_area": 21120.0
+        },
+        "node": {
+          "area": 1677.0000000000002,
+          "width": 30,
+          "length": 55.900000000000006,
+          "count": 3840,
+          "chip_type": "PIC_1",
+          "total_area": 6439680.000000001
+        }
+      }
+    },
+    "by_chip_type": {
+      "LT": {
+        "PIC_2": {
+          "devices": [
+            "core_off_chip_laser_0_i_laser-LT_Laser"
+          ],
+          "total_area": 1440000
+        },
+        "PIC_1": {
+          "devices": [
+            "core_photodetector_0_i_pd-LT_PD",
+            "node"
+          ],
+          "total_area": 6460160.000000001
+        },
+        "RF_EIC": {
+          "devices": [
+            "core_tia_0_i_tia-TIA_1",
+            "core_adc_0_i_adc-ADC_SAR_1",
+            "core_dac_0_i_dac-DAC_2"
+          ],
+          "total_area": 8560000
+        }
+      }
+    },
+    "total": {
+      "LT": 23038848.0
+    }
+  },
+  "latency": {
+    "computation": {
+      "LT": {
+        "total_tuning_latency": 0.000168564,
+        "total_static_latency": 0.000169226
+      }
+    },
+    "memory": {
+      "LT": {
+        "patch_embed.proj.conv": {
+          "GLB2_input_latency": 2.1600730368e-05,
+          "GLB2_output_latency": 3.624780096e-06,
+          "GLB1_input_latency": 7.101609984e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.0.self_attn.qkv.linear": {
+          "GLB2_input_latency": 8.96948136e-06,
+          "GLB2_output_latency": 1.0929821616e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.0.self_attn.proj.linear": {
+          "GLB2_input_latency": 5.418676368e-06,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.0.self_attn.quantized_matmul.matmul": {
+          "GLB2_input_latency": 1.485772625925e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.821636936e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.0.linear1.linear": {
+          "GLB2_input_latency": 1.0744883856e-05,
+          "GLB2_output_latency": 1.4573095488e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.0.linear2.linear": {
+          "GLB2_input_latency": 2.1674705472e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 7.101609984e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.1.self_attn.qkv.linear": {
+          "GLB2_input_latency": 8.96948136e-06,
+          "GLB2_output_latency": 1.0929821616e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.1.self_attn.proj.linear": {
+          "GLB2_input_latency": 5.418676368e-06,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.1.self_attn.quantized_matmul.matmul": {
+          "GLB2_input_latency": 1.485772625925e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.821636936e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.1.linear1.linear": {
+          "GLB2_input_latency": 1.0744883856e-05,
+          "GLB2_output_latency": 1.4573095488e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.1.linear2.linear": {
+          "GLB2_input_latency": 2.1674705472e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 7.101609984e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.2.self_attn.qkv.linear": {
+          "GLB2_input_latency": 8.96948136e-06,
+          "GLB2_output_latency": 1.0929821616e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.2.self_attn.proj.linear": {
+          "GLB2_input_latency": 5.418676368e-06,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.2.self_attn.quantized_matmul.matmul": {
+          "GLB2_input_latency": 1.485772625925e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.821636936e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.2.linear1.linear": {
+          "GLB2_input_latency": 1.0744883856e-05,
+          "GLB2_output_latency": 1.4573095488e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.2.linear2.linear": {
+          "GLB2_input_latency": 2.1674705472e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 7.101609984e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.3.self_attn.qkv.linear": {
+          "GLB2_input_latency": 8.96948136e-06,
+          "GLB2_output_latency": 1.0929821616e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.3.self_attn.proj.linear": {
+          "GLB2_input_latency": 5.418676368e-06,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.3.self_attn.quantized_matmul.matmul": {
+          "GLB2_input_latency": 1.485772625925e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.821636936e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.3.linear1.linear": {
+          "GLB2_input_latency": 1.0744883856e-05,
+          "GLB2_output_latency": 1.4573095488e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.3.linear2.linear": {
+          "GLB2_input_latency": 2.1674705472e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 7.101609984e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        }
+      }
+    },
+    "total": {
+      "LT": 0.0008362723941649999
+    }
+  },
+  "memory": {
+    "latency": {
+      "LT": {
+        "patch_embed.proj.conv": {
+          "GLB2_input_latency": 2.1600730368e-05,
+          "GLB2_output_latency": 3.624780096e-06,
+          "GLB1_input_latency": 7.101609984e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.0.self_attn.qkv.linear": {
+          "GLB2_input_latency": 8.96948136e-06,
+          "GLB2_output_latency": 1.0929821616e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.0.self_attn.proj.linear": {
+          "GLB2_input_latency": 5.418676368e-06,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.0.self_attn.quantized_matmul.matmul": {
+          "GLB2_input_latency": 1.485772625925e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.821636936e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.0.linear1.linear": {
+          "GLB2_input_latency": 1.0744883856e-05,
+          "GLB2_output_latency": 1.4573095488e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.0.linear2.linear": {
+          "GLB2_input_latency": 2.1674705472e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 7.101609984e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.1.self_attn.qkv.linear": {
+          "GLB2_input_latency": 8.96948136e-06,
+          "GLB2_output_latency": 1.0929821616e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.1.self_attn.proj.linear": {
+          "GLB2_input_latency": 5.418676368e-06,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.1.self_attn.quantized_matmul.matmul": {
+          "GLB2_input_latency": 1.485772625925e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.821636936e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.1.linear1.linear": {
+          "GLB2_input_latency": 1.0744883856e-05,
+          "GLB2_output_latency": 1.4573095488e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.1.linear2.linear": {
+          "GLB2_input_latency": 2.1674705472e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 7.101609984e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.2.self_attn.qkv.linear": {
+          "GLB2_input_latency": 8.96948136e-06,
+          "GLB2_output_latency": 1.0929821616e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.2.self_attn.proj.linear": {
+          "GLB2_input_latency": 5.418676368e-06,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.2.self_attn.quantized_matmul.matmul": {
+          "GLB2_input_latency": 1.485772625925e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.821636936e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.2.linear1.linear": {
+          "GLB2_input_latency": 1.0744883856e-05,
+          "GLB2_output_latency": 1.4573095488e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.2.linear2.linear": {
+          "GLB2_input_latency": 2.1674705472e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 7.101609984e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.3.self_attn.qkv.linear": {
+          "GLB2_input_latency": 8.96948136e-06,
+          "GLB2_output_latency": 1.0929821616e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.3.self_attn.proj.linear": {
+          "GLB2_input_latency": 5.418676368e-06,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.3.self_attn.quantized_matmul.matmul": {
+          "GLB2_input_latency": 1.485772625925e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 1.821636936e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.3.linear1.linear": {
+          "GLB2_input_latency": 1.0744883856e-05,
+          "GLB2_output_latency": 1.4573095488e-05,
+          "GLB1_input_latency": 1.775402496e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        },
+        "layers.3.linear2.linear": {
+          "GLB2_input_latency": 2.1674705472e-05,
+          "GLB2_output_latency": 3.643273872e-06,
+          "GLB1_input_latency": 7.101609984e-06,
+          "GLB1_output_latency": 3.94533888e-07,
+          "RF_input_latency": 9.246887999999999e-09,
+          "RF_output_latency": 3.94533888e-07
+        }
+      }
+    },
+    "energy": {
+      "LT": {
+        "HBM": 541090368.0,
+        "GLB2": 70214408.29664,
+        "GLB1": 114866869.94944,
+        "RF": 104872230.20885333
+      }
+    },
+    "spec": {
+      "HBM": {
+        "bandwidth": 8192000000000.0,
+        "read_energy": 62.4,
+        "write_energy": 62.4
+      },
+      "GLB2": {
+        "block_size": 8,
+        "cache_size": 485,
+        "bus_width": 64,
+        "total_cache_size": 525740,
+        "bandwidth": 20763742353.103012,
+        "cycle_time": 0.048160875,
+        "access_time": 0.051851875,
+        "number_of_srams": 4,
+        "read_energy": 1.50362,
+        "write_energy": 1.5362,
+        "area": 0.00780287,
+        "height": 0.0659693,
+        "width": 0.11828,
+        "gate_leakage_power": 0.0208221,
+        "leakage_power": 0.00434909
+      },
+      "GLB1": {
+        "block_size": 8,
+        "cache_size": 485,
+        "bus_width": 64,
+        "total_cache_size": 1958430,
+        "bandwidth": 20763742353.103012,
+        "cycle_time": 0.048160875,
+        "access_time": 0.051851875,
+        "number_of_srams": 4038,
+        "read_energy": 1.50362,
+        "write_energy": 1.5362,
+        "area": 0.00780287,
+        "height": 0.0659693,
+        "width": 0.11828,
+        "gate_leakage_power": 0.0208221,
+        "leakage_power": 0.00434909
+      },
+      "RF": {
+        "block_size": 8,
+        "cache_size": 485,
+        "bus_width": 64,
+        "total_cache_size": 1958430,
+        "bandwidth": 20763742353.103012,
+        "cycle_time": 0.048160875,
+        "access_time": 0.051851875,
+        "number_of_srams": 4038,
+        "read_energy": 1.50362,
+        "write_energy": 1.5362,
+        "area": 0.00780287,
+        "height": 0.0659693,
+        "width": 0.11828,
+        "gate_leakage_power": 0.0208221,
+        "leakage_power": 0.00434909
+      }
+    }
+  },
+  "metrics": {
+    "energy_pj": 48834608348.43928,
+    "area_um2": 23038848.0,
+    "latency_s": 0.0008362723941649999
+  }
+}

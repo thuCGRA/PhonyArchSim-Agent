@@ -1,0 +1,14 @@
+{
+  "latency_s": 0.0005238480269569999,
+  "energy_pj": 511019578.10652804,
+  "area_um2": 403806252.79999995,
+  "total_macs": 1112638464.0,
+  "pJ_per_mac": 0.4592862772956661,
+  "core_insertion_loss": 6.220000000000001,
+  "base_objective": 97154.25406653213,
+  "weight_latency_s": 1.0,
+  "weight_pJ_per_mac": 1.0,
+  "weight_area_um2": 1.0,
+  "il_budget_penalty": 1.0,
+  "objective": 97154.25406653213
+}
