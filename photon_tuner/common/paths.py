@@ -1,14 +1,12 @@
-"""Centralised, portable path resolution for the photonic DSE framework.
+"""光子 DSE 框架的集中式、可移植路径解析。
 
-Everything here is derived from *this file's* physical location, so the project
-works no matter where it is checked out (``/home/fyq/epic``, a Windows mount
-like ``\\wsl.localhost\\Ubuntu\\home\\fyq\\epic``, or any other prefix).  Nothing
-depends on the process CWD or on a hard-coded host path.
+这里的一切都派生自*本文件*的物理位置，因此项目无论被检出到哪里都能正常工作
+（``/path/to/epic``、Windows 挂载路径如 ``\\wsl.localhost\\Ubuntu\\path\\to\\epic``，
+或任何其他前缀）。任何内容都不依赖进程 CWD 或硬编码的主机路径。
 
-Convention (see the portability notes in the repo):
-- Resolve paths *lazily* from the anchors below; never persist an absolute host
-  path into a result file.
-- Result files record paths *relative to* their run/output anchor instead.
+约定：
+- 从下方锚点*惰性*解析路径；绝不将绝对主机路径持久化到结果文件。
+- 结果文件改为记录相对于其运行/输出锚点的路径。
 """
 
 from __future__ import annotations
@@ -16,16 +14,16 @@ from __future__ import annotations
 from pathlib import Path
 
 # photon_tuner/common/paths.py
-#   parents[0] = common/   parents[1] = photon_tuner/   parents[2] = project root
+#   parents[0] = common/   parents[1] = photon_tuner/   parents[2] = 项目根目录
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 
 CONFIG_ROOT = PROJECT_ROOT / "configs"
 
-# Vendored third-party SimPhony checkout (see simulators/simphony/VENDORED.md).
+# 内置的第三方 SimPhony 检出（见 simulators/simphony/VENDORED.md）。
 SIMPHONY_ROOT = PACKAGE_ROOT / "simulators" / "simphony"
 
-# Global, cross-run history store (RAG memory).  Deliberately *not* per-run:
-# it accumulates across every tuning run, so it lives in a shared data dir.
+# 全局、跨运行的历史存储（RAG 记忆）。有意地*不*按运行隔离：
+# 它在每次调优运行中持续累积，因此位于共享数据目录。
 MEMORY_DB_DIR = PROJECT_ROOT / "memory" / "database"
 MEMORY_DB_PATH = MEMORY_DB_DIR / "history.db"

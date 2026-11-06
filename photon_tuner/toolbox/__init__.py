@@ -1,25 +1,30 @@
-"""Agent toolboxes (functions the agents call), distinct from the root
-``tools/`` directory which holds CLI driver scripts.
+"""Agent 工具箱：agent 调用的、领域安全的处理器。
 
-Agent -> toolbox mapping
-------------------------
-Each agent only sees its ``allowed_tool_names`` allow-list (declared in
-``photon_tuner.agents``).  Toolboxes are shared across agents, not owned by a
-single one:
+本包（``analysis_tools`` / ``device_tools`` / ``common_tool`` /
+``tool_cache``）是纯领域逻辑，必须能在不依赖 langchain 的情况下被 import，
+以便仅领域测试套件可直接在纯 ``python3`` 上运行。把这些处理器包装成
+``BaseTool`` 的 LangChain 绑定层位于同级子包
+:mod:`photon_tuner.toolbox.bindings`（此处有意不导入）。
+
+Agent -> 工具箱映射
+--------------------
+每个 agent 只能看到自己的 ``allowed_tool_names`` 白名单（在
+``photon_tuner.agents`` 中声明）。工具箱在 agent 之间共享，而非由某个
+agent 独占：
 
 model_level
-    ``analysis_tools``: hardware_metrics (all 5), layer_analysis
-    (layer_ranks / operator_groups), search_state (both).
+    ``analysis_tools``：hardware_metrics（全部 5 个）、layer_analysis
+    （layer_ranks / operator_groups）、search_state（两个）。
 layer_level
-    ``analysis_tools``: layer_analysis (all 3), hardware_metrics
-    (hardware_config / metrics), search_state (both).
+    ``analysis_tools``：layer_analysis（全部 3 个）、hardware_metrics
+    （hardware_config / metrics）、search_state（两个）。
 optical_level
-    ``device_tools``: catalog (both), metrics (all 4).
+    ``device_tools``：catalog（两个）、metrics（全部 4 个）。
 solution
-    ``analysis_tools``: hardware_metrics (all 5), layer_analysis (all 3),
-    search_state (both), edits (both); ``device_tools``: edits
-    (modify_device_parameter).
+    ``analysis_tools``：hardware_metrics（全部 5 个）、layer_analysis
+    （全部 3 个）、search_state（两个）、edits（两个）；``device_tools``：
+    edits（modify_device_parameter）。
 
-Shared primitives (``ToolContext`` and report helpers) live in
-``photon_tuner.toolbox.common_tool``.
+共享原语（``ToolContext`` 和报告辅助函数）位于
+``photon_tuner.toolbox.common_tool``。
 """

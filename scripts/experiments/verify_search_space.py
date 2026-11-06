@@ -5,7 +5,7 @@ Runs the deterministic ablation harness: baseline + single-variable perturbation
 for every (parameter, candidate value, workload), records injection readback
 and metric deltas into ``data/evidence.db``.
 
-Example (real mode, P3 representative subset):
+Example (real mode):
     source scripts/env/activate_real.sh
     python scripts/experiments/verify_search_space.py \
         --simphony-root <project>/photon_tuner/simulators/simphony \
@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from photon_tuner.core.design_space import DesignSpace
+from photon_tuner.core.search_space import DesignSpace
 from photon_tuner.common.io import read_json
 from photon_tuner.core.search_space import (
     default_hardware,
@@ -35,7 +35,7 @@ from photon_tuner.core.search_space import (
 from photon_tuner.evidence import EvidenceStore, SearchSpaceProbe
 from photon_tuner.simulators.simphony import SimphonyAdapter
 
-# P3 representative subset (confirmed with the user).
+# 默认的架构参数子集（覆盖几何、精度、存储、拓扑与光路分布）。
 DEFAULT_ARCH_PARAMS = [
     "work_freq", "core_height", "core_width", "num_wavelength", "dataflow",
     "tiles", "precision_in_bit", "hbm_bandwidth", "sharing_policy",
@@ -52,7 +52,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--params", default=",".join(DEFAULT_ARCH_PARAMS))
     p.add_argument("--devices", default=",".join(DEFAULT_DEVICES))
     p.add_argument("--search-space", default="configs/search_space.json")
-    p.add_argument("--mode", default="real", choices=["real", "analytic", "auto"])
+    p.add_argument("--mode", default="real", choices=["real"],
+                   help="仿真模式；analytic 已废弃，只保留 real")
     p.add_argument("--model-type", default="transformer")
     p.add_argument("--output-dir", default="runs/evidence")
     p.add_argument("--db", default="data/evidence.db")

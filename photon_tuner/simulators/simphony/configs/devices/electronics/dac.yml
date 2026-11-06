@@ -23,3 +23,70 @@ dac:
       power: 50 # mW
       sample_rate: 14 # GSPS
       FoM: null
+  DAC_3: # A 48-dB SFDR, 43-dB SNDR, 50-GS/s 9-b 2x-Interleaved Nyquist DAC in Intel 16 (IEEE SSCL 2022)
+    PDK: ""
+    platform: Intel16   # paper: Intel 16 (~16nm-class FinFET)
+    ref: "https://doi.org/10.1109/lssc.2022.3205884"
+    type: DAC
+    exp: True
+    cfgs:
+      tech: 16 # Intel 16
+      area: 200000 # um^2 (0.2 mm2 active)
+      prec: 9 # bit
+      power: 243 # mW (base; simulator recomputes via FoM path)
+      sample_rate: 50 # GSPS
+      FoM: 23.2 # fJ/step (linearity FoM; SNDR FoM 41.3 also reported)
+  DAC_4: # A 2x Time-Interleaved 28-GS/s 8-Bit 0.03-mm2 Switched-Capacitor DAC in 16-nm FinFET CMOS (JSSC 2021)
+    PDK: ""
+    platform: CMOS-16nm-FinFET
+    ref: "https://doi.org/10.1109/jssc.2021.3057608"
+    type: DAC
+    exp: True
+    cfgs:
+      tech: 16 # nm FinFET
+      area: 30000 # um^2 (0.03 mm2)
+      prec: 8 # bit
+      power: 88 # mW
+      sample_rate: 28 # GSPS
+      FoM: null # not reported
+  DAC_5: # A 56 GS/s 8-bit 0.011 mm2 4x Delta-Interleaved Switched-Capacitor DAC in 16nm FinFET CMOS (ESSCIRC 2022)
+    PDK: ""
+    platform: CMOS-16nm-FinFET
+    ref: "https://doi.org/10.1109/esscirc55480.2022.9911426"
+    type: DAC
+    exp: True
+    cfgs:
+      tech: 16 # nm FinFET
+      area: 11000 # um^2 (0.011 mm2)
+      prec: 8 # bit
+      power: 280 # mW
+      sample_rate: 56 # GSPS
+      FoM: null # not reported
+  DAC_LP_28nm: # 折中构造（无单一论文来源）：锚定 DAC_4(16nm/28GS/s/88mW/0.03mm2) 向老节点+降速外推
+    PDK: ""
+    platform: CMOS-28nm（构造）
+    ref: ""
+    type: DAC
+    exp: True
+    note: "折中构造，非任何论文实测值：以 DAC_4(16nm,28GS/s,88mW,0.03mm2) 为锚，退到 28nm 并降速至 20GS/s → 面积随节点与集成度上升、功耗随速率下降。用于补齐 power×area 包络的'低功耗/大占位'端点。"
+    cfgs:
+      tech: 28 # nm（构造）
+      prec: 8 # bit
+      sample_rate: 20 # GSPS（构造）
+      power: 45 # mW（构造）
+      area: 90000 # um^2（构造，0.09 mm2）
+      FoM: null
+  DAC_HS_16nm: # 折中构造（无单一论文来源）：锚定 DAC_5(16nm/56GS/s/280mW/0.011mm2) 做更激进交织
+    PDK: ""
+    platform: CMOS-16nm-FinFET（构造）
+    ref: ""
+    type: DAC
+    exp: True
+    note: "折中构造，非任何论文实测值：以 DAC_5(16nm,56GS/s,280mW,0.011mm2) 为锚，用更激进的时间交织换取更小面积，代价是更高功耗。用于补齐'小面积/高功耗'端点并解锁 50-60GHz 工作区间。"
+    cfgs:
+      tech: 16 # nm FinFET（构造）
+      prec: 8 # bit
+      sample_rate: 60 # GSPS（构造）
+      power: 300 # mW（构造）
+      area: 8000 # um^2（构造，0.008 mm2）
+      FoM: null

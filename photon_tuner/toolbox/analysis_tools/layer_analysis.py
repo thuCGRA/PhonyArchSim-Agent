@@ -1,6 +1,6 @@
-"""Layer-rank / operator-group / layer-detail read tools for the analysis toolbox.
+"""分析工具箱的层排名 / 算子组 / 层详情读取工具。
 
-Used by: layer_level, model_level, solution.
+使用者：layer_level、model_level、solution。
 """
 
 from __future__ import annotations
@@ -27,11 +27,10 @@ def summarize_layer_ranks(toolbox: Any, context: ToolContext, arguments: Dict[st
 
 
 def summarize_operator_groups(toolbox: Any, context: ToolContext, arguments: Dict[str, Any]) -> ToolResult:
-    """Aggregate the per-layer evidence into operator groups.
+    """将逐层证据聚合为算子组。
 
-    Instead of one row per layer the agent sees a handful of groups (attention,
-    qkv / output projection, ffn, ...) with their share of total energy and
-    cycles.
+    agent 看到的不是每个层一行，而是少数几个组（attention、qkv / output
+    projection、ffn 等），以及它们在总能耗和周期中的占比。
     """
     report = _load_report(context)
     ranks = _rank_layers(report, context)
@@ -45,6 +44,7 @@ def summarize_operator_groups(toolbox: Any, context: ToolContext, arguments: Dic
             "switching_cycles": 0.0,
             "energy_pj": 0.0,
             "area_share_um2": 0.0,
+            "memory_latency_s": 0.0,
             "energy_source": item["energy_source"],
             "top_layers": [],
         })
@@ -52,6 +52,7 @@ def summarize_operator_groups(toolbox: Any, context: ToolContext, arguments: Dic
         bucket["switching_cycles"] += item["switching_cycles"]
         bucket["energy_pj"] += item["energy_pj"]
         bucket["area_share_um2"] += item["area_share_um2"]
+        bucket["memory_latency_s"] += item["memory_latency_s"]
         if len(bucket["top_layers"]) < top_per_group:
             bucket["top_layers"].append(item["layer_name"])
 

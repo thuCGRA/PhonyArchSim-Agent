@@ -1,10 +1,8 @@
-"""Quantized VGG-style pure-CNN model for SimPhony real mode.
+"""面向 SimPhony real 模式的量化 VGG 风格纯 CNN 模型。
 
-Uses only QConv2d + QLinear layers (no QMatMul), matching the ``simple_cnn``
-NN/arch mapping selected by ``--model-type cnn``. Downsampling is done with
-stride-2 convolutions (an all-convolutional VGG variant), so every learnable
-layer is a quantized layer and none of the pooling/BN layers leak into the
-ONN layer list.
+仅使用 QConv2d + QLinear 层（无 QMatMul），匹配 ``--model-type cnn`` 所选的
+``simple_cnn`` NN/arch 映射。下采样通过 stride-2 卷积完成（全卷积 VGG 变体），
+因此每个可学习层都是量化层，池化/BN 层不会泄漏进 ONN 层列表。
 """
 
 from __future__ import annotations
@@ -18,12 +16,11 @@ from models.quantized_base import ConvBlock, LinearBlock, QBaseModel
 
 
 class QVGG(QBaseModel):
-    """Parameterized VGG-style stack: conv stages + a single linear head.
+    """参数化的 VGG 风格堆叠：卷积阶段 + 单个线性头。
 
-    ``conv_channels`` gives each stage's output channels; ``conv_blocks`` gives
-    the number of 3x3 convs per stage. The first conv of every stage except the
-    first uses stride 2 to downsample. A global average pool + one linear layer
-    produces the logits.
+    ``conv_channels`` 给出每个阶段的输出通道数；``conv_blocks`` 给出每个阶段的
+    3x3 卷积数。除第一阶段外，每个阶段的首个卷积用 stride 2 下采样。全局平均池化 +
+    一个线性层输出 logits。
     """
 
     def __init__(
@@ -46,7 +43,7 @@ class QVGG(QBaseModel):
         in_ch = 3
         for stage, (out_ch, n) in enumerate(zip(conv_channels, conv_blocks)):
             for i in range(n):
-                # First conv of each stage (except stage 0) downsamples by 2.
+                # 每个阶段的首个卷积（除阶段 0 外）按 2 倍下采样。
                 stride = 2 if (stage > 0 and i == 0) else 1
                 features.append(
                     ConvBlock(

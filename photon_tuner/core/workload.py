@@ -1,29 +1,20 @@
-"""Named, loadable workloads for the offline analytic photonic evaluator.
+"""面向离线解析光子评估器的命名可加载工作负载。
 
-The analytic mirror originally evaluated one hand-written three-layer workload
-(``synthetic_workload``).  That made every per-layer / per-operator-group signal
-constant, because the *demand* side of the diagnosis never changed.  This module
-generalises the workload to a **named, loadable** object so the multi-agent loop
-can diagnose a realistic model instead.
+本模块将工作负载抽象为 **命名、可加载** 对象，使多 agent 循环能诊断真实模型。
 
-Two workload kinds are supported:
+支持的工作负载类型：
 
 ``literal``
-    Explicit ``cycles`` / ``layer_sizes`` tables.  Used by the legacy
-    ``synthetic`` baseline so the existing reference numbers (and tests) are
-    untouched.
+    显式的 ``cycles`` / ``layer_sizes`` 表（由配置直接给出）。
 
 ``vit``
-    A parameterised ViT / BERT encoder matching
-    ``simphony/models/quantized_BERT_base.py``.  Its per-layer cycle tuples are
-    computed with the **same arithmetic** SimPhony uses in
-    ``onnarchsim.workflow.dataflow.cycles`` -- ported here as pure Python so it
-    runs without torch / torchonn / numpy.
+    参数化的 ViT / BERT 编码器，对应 ``simphony/models/quantized_BERT_base.py``。
+    其逐层 cycle 元组用与 SimPhony 在 ``onnarchsim.workflow.dataflow.cycles``
+    中 **相同的算术** 计算——此处以纯 Python 实现，无需 torch / torchonn / numpy。
 
-Because the cycle arithmetic depends on the architecture
-(``num_wavelength``, ``miniblock``, ``dim_map``), a ``vit`` workload responds to
-hardware edits: changing the wavelength count moves ``iter_D`` and therefore the
-per-layer cycle split the agents read.
+由于 cycle 算术依赖架构（``num_wavelength``、``miniblock``、``dim_map``），
+``vit`` 工作负载会响应硬件修改：改变波长数会改变 ``iter_D``，进而改变
+agent 读取的逐层 cycle 划分。
 """
 
 from __future__ import annotations
@@ -41,62 +32,34 @@ __all__ = [
     "available_workloads",
     "build_workload",
     "load_workload_configs",
-    "synthetic_cycles",
-    "synthetic_layer_sizes",
 ]
 
 # --------------------------------------------------------------------------- #
-# Architecture context defaults (mirror the shipped SimPhony mapping configs).
+# 架构上下文默认值（对应随附的 SimPhony 映射配置）。
 # --------------------------------------------------------------------------- #
 
-#: ``configs/architecture_mapping/simple_lt_*.yml`` maps M/N/D onto the core.
+#: ``configs/architecture_mapping/simple_lt_*.yml`` 将 M/N/D 映射到核心。
 DEFAULT_DIM_MAP: Dict[str, str] = {"M": "width", "N": "height", "D": "wavelength"}
 
-#: ``configs/onn_mapping/simple_*.yml`` uses the same miniblock for every layer.
+#: ``configs/onn_mapping/simple_*.yml`` 对每一层使用相同的 miniblock。
 DEFAULT_MINIBLOCK: List[int] = [2, 2, 4, 4]
 
-DEFAULT_WORKLOAD = "synthetic"
+DEFAULT_WORKLOAD = "vit_tiny"
 
 CONFIG_RELPATH = Path("configs") / "workloads.json"
 
 
 class WorkloadError(ValueError):
-    """Raised when a workload name or spec is unusable."""
-
-
-# --------------------------------------------------------------------------- #
-# Legacy literal baseline (kept byte-identical to the original constants).
-# --------------------------------------------------------------------------- #
-
-def synthetic_cycles() -> Dict[str, Tuple[int, int, int, int, int, int, int, int]]:
-    """The original hand-written three-layer workload.
-
-    Tuples follow ``(iter_N, iter_D, iter_M, N, D, M, forward_factor_w,
-    forward_factor_x)`` produced by SimPhony's ``simu_partition_cycles``.
-    """
-    return {
-        "conv1": (1, 3, 75, 8, 27, 1800, 1, 1),
-        "conv2": (1, 6, 66, 8, 72, 1568, 1, 1),
-        "linear": (1, 17, 1, 10, 200, 2, 1, 1),
-    }
-
-
-def synthetic_layer_sizes() -> Dict[str, Dict[str, Any]]:
-    """Approximate layer I/O sizes (element counts) for the analytic memory model."""
-    return {
-        "conv1": {"input_size": [1536, 4], "output_size": [288, 4], "weight_size": [72, 4], "total_size": 1896},
-        "conv2": {"input_size": [288, 4], "output_size": [256, 4], "weight_size": [144, 4], "total_size": 688},
-        "linear": {"input_size": [200, 4], "output_size": [2, 4], "weight_size": [400, 4], "total_size": 602},
-    }
+    """当工作负载名称或规格不可用时抛出。"""
 
 
 def total_macs(partition_cycles: Mapping[str, Any]) -> int:
-    """Total useful MACs across layers = sum of ``N * D * M``.
+    """各层有效 MAC 总数 = ``N * D * M`` 之和。
 
-    Cycles are SimPhony tuples ``(iter_N, iter_D, iter_M, N, D, M,
-    forward_factor_w, forward_factor_x)`` produced by ``simu_partition_cycles``.
-    The useful operation count is the ``N x D x M`` matmul/conv volume at
-    indices [3][4][5] (the forward factors are 1 for the built-in workloads).
+    Cycles 是 SimPhony 元组 ``(iter_N, iter_D, iter_M, N, D, M,
+    forward_factor_w, forward_factor_x)``，由 ``simu_partition_cycles`` 产生。
+    有效运算数为下标 [3][4][5] 处的 ``N x D x M`` 矩阵乘/卷积规模
+    （内置工作负载的 forward factor 均为 1）。
     """
     total = 0
     for cycle in partition_cycles.values():
@@ -106,7 +69,7 @@ def total_macs(partition_cycles: Mapping[str, Any]) -> int:
 
 
 # --------------------------------------------------------------------------- #
-# Portable cycle arithmetic (ported from onnarchsim/workflow/dataflow.py).
+# 可移植的 cycle 算术（对应 onnarchsim/workflow/dataflow.py）。
 # --------------------------------------------------------------------------- #
 
 def _prod(values: Iterable[int]) -> int:
@@ -129,18 +92,18 @@ def im2col_shapes(
     padding: Any = 0,
     layer_shape: Optional[Sequence[Any]] = None,
 ) -> Tuple[Optional[Tuple[int, int]], Optional[Tuple[int, int]]]:
-    """Reshape a layer into a 2-D matrix pair, mirroring ``im2col_2d_shape``.
+    """将一层重塑为 2-D 矩阵对，对应 ``im2col_2d_shape``。
 
-    Returns ``(reshaped_input, reshaped_weight)`` -- the same ordering SimPhony
-    builds its ``matrices`` list in (``dataflow.generate_layer_sizes``) and the
-    ordering :func:`cycle_tuple` expects as ``matrices[0]`` / ``matrices[1]``.
-    The input is ``(D, M)`` and the weight is ``(N, D)``.
+    返回 ``(reshaped_input, reshaped_weight)``——与 SimPhony 构建 ``matrices``
+    列表的顺序一致（``dataflow.generate_layer_sizes``），也是
+    :func:`cycle_tuple` 期望的 ``matrices[0]`` / ``matrices[1]`` 顺序。
+    输入为 ``(D, M)``，权重为 ``(N, D)``。
     """
 
     if op in ("Linear", "QLinear"):
         if weight_shape is None or input_shape is None:
             return None, None
-        # A Linear weight is (out_features, in_features) == (N, D).
+        # Linear 权重为 (out_features, in_features) == (N, D)。
         out_features, in_features = _as_pair(weight_shape)
         dims = int(input_shape[-1])
         tokens = _prod(input_shape[:-1])
@@ -183,7 +146,7 @@ def loading_factor_calculator(
     input_rep: str = "full",
     output_rep: str = "full",
 ) -> Tuple[int, int]:
-    """Port of ``dataflow.loading_factor_calculator`` -> (forward_factor_x, forward_factor_w)."""
+    """``dataflow.loading_factor_calculator`` 的移植 -> (forward_factor_x, forward_factor_w)。"""
     reps = {"full", "complex", "positive"}
     for label, rep in (("weight", weight_rep), ("input", input_rep), ("output", output_rep)):
         if rep not in reps:
@@ -210,7 +173,7 @@ def calculate_iterations(
     N: int,
     M: int,
 ) -> Tuple[int, int, int, Dict[str, int], Dict[str, int]]:
-    """Port of ``dataflow.calculate_iterations``."""
+    """``dataflow.calculate_iterations`` 的移植。"""
     if len(miniblock) != 4:
         raise WorkloadError(f"miniblock must have 4 entries, got {list(miniblock)!r}")
     arch_dims = {
@@ -250,15 +213,15 @@ def cycle_tuple(
     input_rep: str = "full",
     output_rep: str = "full",
 ) -> Tuple[int, int, int, int, int, int, int, int]:
-    """Port of ``dataflow.cycles`` returning the 8-tuple the report uses.
+    """``dataflow.cycles`` 的移植，返回报告所用的 8 元组。
 
-    SimPhony returns a 9-tuple whose last element is the resolved ``arch_dims``
-    dict; the analytic report only stores the eight integers.
+    SimPhony 返回 9 元组，其最后一个元素是解析后的 ``arch_dims`` 字典；
+    解析报告仅存储前八个整数。
     """
     dim_map = dict(dim_map or DEFAULT_DIM_MAP)
     reshaped_input, reshaped_weight = matrices
-    N, D1 = reshaped_weight  # weight shape (N, D)
-    D2, M = reshaped_input  # input shape (D, M)
+    N, D1 = reshaped_weight  # 权重形状 (N, D)
+    D2, M = reshaped_input  # 输入形状 (D, M)
     if D1 != D2:
         raise WorkloadError(f"inconsistent matrix dimensions: weight D={D1}, input D={D2}")
 
@@ -277,12 +240,12 @@ def cycle_tuple(
 
 
 # --------------------------------------------------------------------------- #
-# Workload builders.
+# 工作负载构建器。
 # --------------------------------------------------------------------------- #
 
 def _sizes_from_dense(op: str, weight_shape: Sequence[int], input_shape: Sequence[int],
                       stride: Any = 1, padding: Any = 0) -> Dict[str, Any]:
-    """Element counts for the analytic memory model, derived from layer shapes."""
+    """根据层形状推导的解析存储模型元素数。"""
     weight_elems = _prod(weight_shape)
     input_elems = _prod(input_shape)
     if op in ("Conv", "Conv1d", "Conv2d", "Conv3d", "QConv2d"):
@@ -312,7 +275,7 @@ def _sizes_from_dense(op: str, weight_shape: Sequence[int], input_shape: Sequenc
 
 
 def _vit_layers(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Expand a ViT/BERT encoder spec into concrete layer descriptors."""
+    """将 ViT/BERT 编码器规格展开为具体层描述符。"""
     embed = int(spec["embed_dim"])
     depth = int(spec["depth"])
     heads = int(spec["num_heads"])
@@ -327,11 +290,11 @@ def _vit_layers(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
     if img % patch:
         raise WorkloadError("img_size must be divisible by patch_size")
     grid = img // patch
-    tokens = grid * grid + 1  # patch tokens + classification token
+    tokens = grid * grid + 1  # patch 令牌 + 分类令牌
 
     layers: List[Dict[str, Any]] = []
 
-    # Patch embedding: Conv2d(in_chans -> embed, kernel=stride=patch).
+    # Patch 嵌入：Conv2d(in_chans -> embed, kernel=stride=patch)。
     layers.append({
         "name": "patch_embed",
         "op": "Conv2d",
@@ -343,14 +306,14 @@ def _vit_layers(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     for index in range(depth):
         prefix = f"layers.{index}"
-        # Fused QKV projection: Linear(embed -> 3*embed).
+        # 融合 QKV 投影：Linear(embed -> 3*embed)。
         layers.append({
             "name": f"{prefix}.qkv",
             "op": "Linear",
             "weight_shape": [3 * embed, embed],
             "input_shape": [tokens, embed],
         })
-        # Attention scores Q @ K^T: (heads, tokens, head_dim) x (heads, head_dim, tokens).
+        # 注意力分数 Q @ K^T：(heads, tokens, head_dim) x (heads, head_dim, tokens)。
         layers.append({
             "name": f"{prefix}.attn.qk",
             "op": "MatMul",
@@ -360,7 +323,7 @@ def _vit_layers(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
                 [heads, head_dim, tokens],
             ],
         })
-        # Attention output scores @ V.
+        # 注意力输出 scores @ V。
         layers.append({
             "name": f"{prefix}.attn.av",
             "op": "MatMul",
@@ -370,14 +333,14 @@ def _vit_layers(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
                 [heads, tokens, head_dim],
             ],
         })
-        # Output projection: Linear(embed -> embed).
+        # 输出投影：Linear(embed -> embed)。
         layers.append({
             "name": f"{prefix}.out_proj",
             "op": "Linear",
             "weight_shape": [embed, embed],
             "input_shape": [tokens, embed],
         })
-        # Feed-forward network.
+        # 前馈网络。
         layers.append({
             "name": f"{prefix}.ffn.fc1",
             "op": "Linear",
@@ -452,14 +415,14 @@ _BUILDERS = {
 
 
 # --------------------------------------------------------------------------- #
-# Config loading.
+# 配置加载。
 # --------------------------------------------------------------------------- #
 
 def load_workload_configs(
     simphony_root: Optional[str] = None,
     config_path: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Load ``configs/workloads.json`` (searching a couple of sensible roots)."""
+    """加载 ``configs/workloads.json``（在若干合理根目录中搜索）。"""
     candidates: List[Path] = []
     if config_path:
         candidates.append(Path(config_path))
@@ -492,29 +455,18 @@ def build_workload(
     simphony_root: Optional[str] = None,
     config_path: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Resolve a workload name into ``{name, kind, cycles, layer_sizes, spec}``.
+    """将工作负载名称解析为 ``{name, kind, cycles, layer_sizes, spec}``。
 
-    ``arch`` supplies the architecture-dependent inputs the cycle arithmetic
-    needs: ``num_wavelength``, ``miniblock``, ``dim_map`` and the operand
-    representation flags.
+    ``arch`` 提供 cycle 算术所需的架构相关输入：``num_wavelength``、``miniblock``、
+    ``dim_map`` 与操作数表示标志。
     """
     config = load_workload_configs(simphony_root=simphony_root, config_path=config_path)
     workloads = config.get("workloads") or {}
     resolved = name or config.get("default") or DEFAULT_WORKLOAD
 
-    if resolved == "synthetic" and resolved not in workloads:
-        # Keep the legacy baseline available even if the config omits it.
-        return {
-            "name": "synthetic",
-            "kind": "literal",
-            "cycles": synthetic_cycles(),
-            "layer_sizes": synthetic_layer_sizes(),
-            "spec": {},
-        }
-
     if resolved not in workloads:
         raise WorkloadError(
-            f"unknown workload {resolved!r}; available: {sorted(workloads) or ['synthetic']}"
+            f"unknown workload {resolved!r}; available: {sorted(workloads)}"
         )
     spec = dict(workloads[resolved] or {})
     kind = str(spec.get("kind", "literal"))
@@ -522,11 +474,7 @@ def build_workload(
     if builder is None:
         raise WorkloadError(f"workload {resolved!r} has unsupported kind {kind!r}")
 
-    if kind == "literal" and resolved == "synthetic" and not spec.get("cycles"):
-        # Fall back to the built-in literal constants.
-        cycles, sizes = synthetic_cycles(), synthetic_layer_sizes()
-    else:
-        cycles, sizes = builder(spec, arch or {})
+    cycles, sizes = builder(spec, arch or {})
     if not cycles:
         raise WorkloadError(f"workload {resolved!r} produced no layers")
     return {

@@ -1,6 +1,6 @@
-"""Search-state tools (compare / select evaluation bases) for the analysis toolbox.
+"""分析工具箱的搜索状态工具（比较 / 选择评估基准）。
 
-Used by: model_level, layer_level, solution.
+使用者：model_level、layer_level、solution。
 """
 
 from __future__ import annotations

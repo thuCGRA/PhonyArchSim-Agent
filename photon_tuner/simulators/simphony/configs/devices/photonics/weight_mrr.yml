@@ -1,0 +1,25 @@
+weight_mrr:
+  WG_MRR_WEIGHT_TAIT: # Neuromorphic photonic networks using silicon photonic weight banks (Sci. Rep. 2017)
+    PDK: ""
+    platform: Si photonics (thermal)
+    ref: "https://doi.org/10.1038/s41598-017-07754-z"
+    type: ring
+    exp: True
+    note: "Tait 2017 Sci.Rep. 硅光权重组微环：drop-port 耦合比编码 WDM 权重（差分检测实现正负）。cfgs 为论文典型量级 + 物理合理折中（论文报告权重组系统，非逐环尺寸/损耗）。"
+    cfgs:
+      static_power: 1.0 # mW（TO 热保持，mW/环量级）
+      length: 10 # um（微环直径，含热调谐 pad 的合理包络）
+      width: 10 # um（同上）
+      insertion_loss: 0.3 # dB（drop-port 过耦合损耗）
+  WG_MRR_WEIGHT_LP: # 折中构造（无单一论文来源）
+    PDK: ""
+    platform: Si photonics (thermal)
+    ref: ""
+    type: ring
+    exp: True
+    note: "折中构造（无单一论文来源）：以 Tait 2017 权重组微环为锚外推的更小尺寸/更低保持功率端点，补齐低功耗包络；非任何论文实测值。"
+    cfgs:
+      static_power: 0.5 # mW（构造）
+      length: 6 # um（构造）
+      width: 6 # um（构造）
+      insertion_loss: 0.5 # dB（构造：更小环 → 耦合更弱、损耗略高）

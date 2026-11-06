@@ -264,17 +264,25 @@ class ONNArchSimulator(object):
         sub_arch_insertion_loss = {}
         for sub_arch_name, sub_arch_config in self.sub_arch_dictionary.items():
             sub_arch_insertion_loss[sub_arch_name] = {}
-            sub_arch_node_lp, sub_arch_node_il, sub_arch_lp, sub_arch_il = (
-                architecture_insertion_loss(
-                    sub_arch_config,
-                    self.device_db._db,
-                )
+            (
+                sub_arch_node_lp,
+                sub_arch_node_il,
+                sub_arch_lp,
+                sub_arch_il,
+                sub_arch_node_cl,
+                sub_arch_cl,
+            ) = architecture_insertion_loss(
+                sub_arch_config,
+                self.device_db._db,
             )
             sub_arch_insertion_loss[sub_arch_name] = {
                 "node_path": sub_arch_node_lp,
                 "node_insertion_loss": sub_arch_node_il,
                 "core_path": sub_arch_lp,
                 "core_insertion_loss": sub_arch_il,
+                # instance id -> dB contributed along the winning path
+                "node_component_loss": sub_arch_node_cl,
+                "core_component_loss": sub_arch_cl,
             }
         return sub_arch_insertion_loss
 

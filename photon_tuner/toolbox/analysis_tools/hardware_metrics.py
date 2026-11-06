@@ -1,6 +1,6 @@
-"""Hardware-config and scalar-metric read tools for the analysis toolbox.
+"""分析工具箱的硬件配置与标量指标读取工具。
 
-Used by: model_level, layer_level, solution.
+使用者：model_level、layer_level、solution。
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from photon_tuner.common.tool_types import ToolResult, ToolSpec
 from photon_tuner.core.search_space import hardware_summary, materialize_hardware
 from photon_tuner.toolbox.common_tool._report_utils import (
     _active_evaluation,
+    _flatten_memory_energy,
     _load_report,
     _metrics_payload,
 )
@@ -30,10 +31,18 @@ def summarize_metrics(toolbox: Any, context: ToolContext, arguments: Dict[str, A
 def summarize_energy_breakdown(toolbox: Any, context: ToolContext, arguments: Dict[str, Any]) -> ToolResult:
     report = _load_report(context)
     energy = report.get("energy", {})
+    # 真实 ONN 仿真器按 *level*（HBM/GLB2/GLB1/RF）而非按层报告内存能耗；
+    # 这里将其展平，使内存子系统的能耗（可能超过计算能耗）对分析 agent 可见。
+    memory_by_level = _flatten_memory_energy(report.get("memory", {}).get("energy", {}))
+    memory_total_pj = round(
+        sum(float(v) for v in memory_by_level.values() if isinstance(v, (int, float))), 3
+    )
     return ToolResult("summarize_energy_breakdown", {
         "by_device": energy.get("by_device", {}),
         "by_chip_type": energy.get("by_chip_type", {}),
         "total": energy.get("total", {}),
+        "memory_by_level": memory_by_level,
+        "memory_total_pj": memory_total_pj,
     })
 
 
@@ -62,7 +71,7 @@ TOOLS: Dict[str, Tuple[ToolSpec, Callable]] = {
         summarize_metrics,
     ),
     "summarize_energy_breakdown": (
-        ToolSpec("summarize_energy_breakdown", "Per-device and per-chip-type energy breakdown (pJ).", {"type": "object", "properties": {}}),
+        ToolSpec("summarize_energy_breakdown", "Per-device / per-chip-type compute energy plus per-level memory energy (HBM/GLB2/GLB1/RF) and its total.", {"type": "object", "properties": {}}),
         summarize_energy_breakdown,
     ),
     "summarize_area_breakdown": (

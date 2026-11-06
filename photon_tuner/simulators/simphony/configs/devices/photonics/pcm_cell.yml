@@ -1,0 +1,25 @@
+pcm_cell:
+  PCM_CELL_FELDMANN: # Parallel convolutional processing using an integrated photonic tensor core (Nature 2021)
+    PDK: ""
+    platform: Si photonics + GST (non-volatile)
+    ref: "https://doi.org/10.1038/s41586-020-03070-1"
+    type: pcm
+    exp: True
+    note: "Feldmann 2021 Nature 集成光子张量核的相变材料（GST）权重单元：波导上 GST 吸收态编码权重（R+，I=4）。非易失保持（静态 ~0），写入 ~100ns；cfgs 为论文典型量级 + 物理合理折中。"
+    cfgs:
+      static_power: 0.0 # mW（非易失：权重保持近乎零功耗）
+      length: 2 # um（GST 斑尺寸量级）
+      width: 2 # um（同上）
+      insertion_loss: 0.5 # dB（波导上吸收态）
+  PCM_CELL_LP: # 折中构造（无单一论文来源）
+    PDK: ""
+    platform: Si photonics + GST (non-volatile)
+    ref: ""
+    type: pcm
+    exp: True
+    note: "折中构造（无单一论文来源）：以 Feldmann 2021 PCM 单元为锚外推的更低损耗/更大占位变体，补齐插损-面积包络；非任何论文实测值。"
+    cfgs:
+      static_power: 0.0 # mW（非易失）
+      length: 4 # um（构造）
+      width: 4 # um（构造）
+      insertion_loss: 0.25 # dB（构造：更弱耦合 → 更低损耗）

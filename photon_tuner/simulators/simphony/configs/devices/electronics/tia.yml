@@ -8,3 +8,25 @@ tia:
       tech: 14 # nm
       area: 50 # um^2
       dynamic_power: 3 # mW
+  TIA_LP: # 10 Gb/s 1.95 mW active cascode transimpedance amplifier for high speed optical receivers (MWSCAS 2016)
+    PDK: ""
+    platform: CMOS-130nm
+    ref: "https://doi.org/10.1109/MWSCAS.2016.7870132"
+    type: TIA
+    exp: True
+    note: "area 为折中构造：论文未报道面积，按 130nm TIA 核估算 2000um2；数值为版图后仿真（非实测硅片）"
+    cfgs:
+      tech: 130 # nm
+      area: 2000 # um^2（折中构造：论文未报道）
+      dynamic_power: 1.95 # mW
+  TIA_HB: # A 40-Gb/s Optical Transceiver Front-End in 45 nm SOI CMOS (JSSC 2012)
+    PDK: ""
+    platform: CMOS-45nm-SOI
+    ref: "https://doi.org/10.1109/JSSC.2011.2178723"
+    type: TIA
+    exp: True
+    note: "area 为折中构造：论文未报道面积，按 45nm SOI TIA 估算 5000um2（非论文值）"
+    cfgs:
+      tech: 45 # nm SOI
+      area: 5000 # um^2（折中构造：论文未报道）
+      dynamic_power: 9 # mW（TIA，1V）

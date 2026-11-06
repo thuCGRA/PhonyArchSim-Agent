@@ -1,5 +1,5 @@
-# Real-mode SimPhony dependency set — final resolved state in /home/fyq/epic/.venv-real
-# Python 3.10.22 (uv standalone, at /home/fyq/epic/.tools/python)
+# Real-mode SimPhony dependency set — final resolved state in .venv-simulator (project root)
+# Python 3.10.22 (uv standalone, under .tools/python)
 #
 # NOTE: several upstream packages had to be pinned/patched for this hardened,
 # non-root, CPU-only container.  Do NOT re-resolve these without the fixes below.

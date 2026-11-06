@@ -1,22 +1,22 @@
-"""CPU model factories for SimPhony real mode.
+"""面向 SimPhony real 模式的 CPU 模型工厂。
 
-Each workload maps to a ``module:function`` builder the DSE CLI selects via
-``--nn-model-factory tests.factory:build_<workload>``.  All models are kept on
-CPU and use the same quantized layer types; the model TYPE selects the NN/arch
-mapping: ``transformer`` (QConv2d/QLinear/QMatMul) or ``cnn`` (QConv2d/QLinear).
+每个工作负载映射到一个 ``module:function`` 构建器，DSE CLI 通过
+``--nn-model-factory tests.factory:build_<workload>`` 选择。所有模型都放在 CPU 上，
+使用相同的量化层类型；模型 TYPE 决定 NN/arch 映射：``transformer``
+（QConv2d/QLinear/QMatMul）或 ``cnn``（QConv2d/QLinear）。
 
-Workloads (from configs/workloads.json + the model zoo):
+工作负载（来自 configs/workloads.json + 模型库）：
 
-    build_vit_tiny        ViT-Tiny encoder   (dim 192, depth 4,  heads 3)
-    build_vit_small       ViT-Small encoder  (dim 384, depth 6,  heads 6)
-    build_vit_base        ViT-Base encoder   (dim 768, depth 12, heads 12)
-    build_mobilevit_xxs   MobileViT-XXS      (224x224, dims [64, 80, 96])
-    build_mobilevit_xs    MobileViT-XS       (224x224, dims [96, 120, 144])
-    build_mobilevit       MobileViT-S        (224x224, dims [144, 192, 240])
-    build_cnn_tiny        VGG-style CNN      (5 conv + 1 fc)
-    build_cnn_small       VGG-style CNN      (8 conv + 1 fc)
-    build_cnn_base        VGG-style CNN      (13 conv + 1 fc)
-    build_model           alias of build_vit_base (back-compat with smoke tests)
+    build_vit_tiny        ViT-Tiny 编码器   (dim 192, depth 4,  heads 3)
+    build_vit_small       ViT-Small 编码器  (dim 384, depth 6,  heads 6)
+    build_vit_base        ViT-Base 编码器   (dim 768, depth 12, heads 12)
+    build_mobilevit_xxs   MobileViT-XXS     (224x224, dims [64, 80, 96])
+    build_mobilevit_xs    MobileViT-XS      (224x224, dims [96, 120, 144])
+    build_mobilevit       MobileViT-S       (224x224, dims [144, 192, 240])
+    build_cnn_tiny        VGG 风格 CNN      (5 conv + 1 fc)
+    build_cnn_small       VGG 风格 CNN      (8 conv + 1 fc)
+    build_cnn_base        VGG 风格 CNN      (13 conv + 1 fc)
+    build_model           build_vit_base 的别名
 """
 
 from __future__ import annotations
@@ -60,9 +60,9 @@ def build_vit_base():
 
 
 def _mobilevit(dim, depth, channels, expansion):
-    """Build one QMobileViT variant; the (dim, depth, channels, expansion)
-    tuples follow the official MobileViT XXS/XS/S configs (apple/ml-cvnets),
-    mapped onto the vendored SimPhony QMobileViT's 11-element channel layout."""
+    """构建一个 QMobileViT 变体；(dim, depth, channels, expansion) 元组遵循官方
+    MobileViT XXS/XS/S 配置（apple/ml-cvnets），映射到内置 SimPhony QMobileViT 的
+    11 元素通道布局。"""
     from models.quantized_mobileViT import QMobileViT
 
     return QMobileViT(
@@ -117,7 +117,7 @@ def build_cnn_base():
     return _cnn([64, 128, 256, 512, 512], [2, 2, 3, 3, 3])
 
 
-# Back-compat: the original smoke tests / earlier runs used ``build_model``.
+# build_model 为 build_vit_base 的别名。
 build_model = build_vit_base
 
 

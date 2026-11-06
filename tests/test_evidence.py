@@ -1,4 +1,4 @@
-"""Tests for the search-space validity verification evidence layer."""
+"""搜索空间有效性验证证据层的测试。"""
 
 import json
 import sys
@@ -75,7 +75,7 @@ class TestSubArchMap(unittest.TestCase):
             confirmed, summary = confirm_injection(sub, param, value)
             self.assertTrue(confirmed, f"{param}: {summary}")
             self.assertIn(param, SUB_ARCH_MAP)
-        # Defaults read back as the baseline netlist types.
+        # 默认值读回为基线网表类型。
         confirmed, _ = confirm_injection(self.sub_arch, "laser_source", "on_chip")
         self.assertTrue(confirmed)
         confirmed, _ = confirm_injection(self.sub_arch, "splitter_kind", "laser_splitter")
@@ -86,7 +86,7 @@ class TestEvidenceStore(unittest.TestCase):
     def _record(self, **overrides):
         record = {
             "param": "work_freq",
-            "layer": "optical_core",
+            "layer": "architecture",
             "workload": "vit_tiny",
             "workload_features": {"name": "vit_tiny", "layer_count": 30},
             "old_value": "5",
@@ -122,7 +122,7 @@ class TestEvidenceStore(unittest.TestCase):
             rows = store.query(param="work_freq")
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["new_value"], "10")
-            # JSON fields decode back to Python objects.
+            # JSON 字段解码回 Python 对象。
             self.assertIsInstance(rows[0]["metric_deltas"], dict)
             self.assertAlmostEqual(rows[0]["metric_deltas"]["latency_pct"], -50.0)
             store.close()

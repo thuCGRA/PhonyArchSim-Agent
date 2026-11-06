@@ -1,1 +1,1 @@
-"""rag package for the photonic DSE framework."""
+"""光子 DSE 框架的 rag 包。"""

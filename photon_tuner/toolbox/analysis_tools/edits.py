@@ -1,6 +1,6 @@
-"""Edit tools (solution-generation only) for the analysis toolbox.
+"""分析工具箱的编辑工具（仅 solution-generation 使用）。
 
-Used by: solution.
+使用者：solution。
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from photon_tuner.core.search_space import (
     hardware_summary,
     modify_arch_parameter,
     step_arch_parameter,
+    switch_topology_template,
 )
 from photon_tuner.toolbox.common_tool.context import ToolContext
 
@@ -37,6 +38,15 @@ def step_hardware_parameter(toolbox: Any, context: ToolContext, arguments: Dict[
     return ToolResult("step_hardware_parameter", {"hardware": hardware_summary(new_hardware)})
 
 
+def modify_topology_template(toolbox: Any, context: ToolContext, arguments: Dict[str, Any]) -> ToolResult:
+    core_kind = str(arguments.get("core_kind", "")).strip()
+    if not core_kind:
+        raise ValueError("modify_topology_template requires a 'core_kind'")
+    new_hardware = switch_topology_template(context.current_hardware, core_kind)
+    context.current_hardware = new_hardware
+    return ToolResult("modify_topology_template", {"hardware": hardware_summary(new_hardware)})
+
+
 TOOLS: Dict[str, Tuple[ToolSpec, Callable]] = {
     "modify_hardware_parameter": (
         ToolSpec("modify_hardware_parameter", "Apply explicit optical-structure parameter updates.", {"type": "object", "properties": {"updates": {"type": "array"}}}),
@@ -45,5 +55,9 @@ TOOLS: Dict[str, Tuple[ToolSpec, Callable]] = {
     "step_hardware_parameter": (
         ToolSpec("step_hardware_parameter", "Step one optical-structure parameter to the next candidate.", {"type": "object", "properties": {"parameter": {"type": "string"}, "direction": {"type": "integer"}}}),
         step_hardware_parameter,
+    ),
+    "modify_topology_template": (
+        ToolSpec("modify_topology_template", "Switch the optical core to another topology template (core_kind), auto-aligning node_kind.", {"type": "object", "properties": {"core_kind": {"type": "string"}}}),
+        modify_topology_template,
     ),
 }

@@ -1,8 +1,7 @@
-"""Shared report-reading helpers used by the analysis and device tools.
+"""分析工具与器件工具共用的报告读取辅助函数。
 
-Pulled out of ``analysis_tools.py`` / ``device_tools.py`` so both toolboxes
-read SimPhony reports through one place, instead of a device tool importing a
-private helper (``_load_report``) from an analysis module.
+两个工具箱通过同一入口读取 SimPhony 报告，而非由器件工具从分析模块导入
+私有辅助函数（``_load_report``）。
 """
 
 from __future__ import annotations
@@ -34,7 +33,7 @@ def _metrics_payload(context: ToolContext, evaluation: EvaluationResult) -> Dict
 
 
 def _active_evaluation(context: ToolContext) -> EvaluationResult:
-    """Return the currently selected evaluation base (default: current)."""
+    """返回当前选定的评估基准（默认：current）。"""
     source = context.active_base.get("source", "current")
     if source in context.evaluation_bases:
         return context.evaluation_bases[source]
@@ -42,7 +41,7 @@ def _active_evaluation(context: ToolContext) -> EvaluationResult:
 
 
 def _flatten_cycles(partition_cycles: Dict[str, Any]) -> Dict[str, Any]:
-    """Flatten {sub_arch: {layer: cycle}} into {layer: cycle}."""
+    """将 {sub_arch: {layer: cycle}} 展平为 {layer: cycle}。"""
     flattened: Dict[str, Any] = {}
     for sub_arch, layers in partition_cycles.items():
         if isinstance(layers, dict):
@@ -68,12 +67,11 @@ def _flatten_memory_energy(energy: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _rank_layers(report: Dict[str, Any], context: ToolContext) -> List[Dict[str, Any]]:
-    """Rank layers by cost, preferring the simulator's *native* per-layer energy.
+    """按成本对层排序，优先采用仿真器*原生*的逐层能耗。
 
-    The analytic mirror reports ``energy.by_layer`` (captured while it already
-    iterates the layers).  When present it is used directly.  Older reports and
-    the real ONN simulator -- which only breaks energy down per device -- fall
-    back to a cycles-proportional estimate, flagged via ``energy_source``.
+    分析镜像会报告 ``energy.by_layer``（在其迭代层时采集）。存在时直接使用。
+    较旧的报告和真实 ONN 仿真器——它们只按器件细分能耗——回退到按周期比例的
+    估算，并通过 ``energy_source`` 标记。
     """
     cycles = _flatten_cycles(report.get("workload", {}).get("partition_cycles", {}))
     memory_latency = _flatten_memory(report.get("memory", {}).get("latency", {}))
@@ -83,8 +81,8 @@ def _rank_layers(report: Dict[str, Any], context: ToolContext) -> List[Dict[str,
     metrics = report.get("metrics", {})
     total_energy = float(metrics.get("energy_pj", 1.0))
     total_area = float(metrics.get("area_um2", 1.0))
-    # Work frequency (GHz) is needed for the per-layer latency estimate; read
-    # it from the evaluated hardware so step-frequency moves are reflected.
+    # 逐层延迟估算需要工作频率 (GHz)；从已评估的硬件中读取，以便反映步进
+    # 频率的变化。
     freq = _work_freq_g_hz(report, context)
 
     switching_cycles = {name: _cycle_switching(cycle) for name, cycle in cycles.items()}
@@ -108,7 +106,7 @@ def _rank_layers(report: Dict[str, Any], context: ToolContext) -> List[Dict[str,
             "memory_latency_s": _memory_latency_value(memory_latency.get(name)),
             "energy_pj": energy_pj,
             "energy_source": energy_source,
-            # Backward-compatible alias for earlier tool consumers.
+            # 为更早的工具调用方保留的向后兼容别名。
             "energy_share_pj": energy_pj,
             "area_share_um2": total_area * share,
             "memory_energy_pj": memory_energy.get(name, 0.0),
@@ -120,7 +118,7 @@ def _rank_layers(report: Dict[str, Any], context: ToolContext) -> List[Dict[str,
 
 
 def _work_freq_g_hz(report: Dict[str, Any], context: ToolContext) -> float:
-    """Read the crossbar clock frequency (GHz) from hardware, with fallbacks."""
+    """从硬件读取交叉开关时钟频率 (GHz)，并带兜底值。"""
     candidates = [
         (context.current_hardware or {}).get("arch", {}).get("optical_core", {}).get("work_freq"),
         (report.get("hardware") or {}).get("arch", {}).get("optical_core", {}).get("work_freq"),
@@ -134,7 +132,7 @@ def _work_freq_g_hz(report: Dict[str, Any], context: ToolContext) -> float:
 
 
 def _cycle_switching(cycle: Any) -> float:
-    """iter_N * iter_D * iter_M from a SimPhony cycle tuple."""
+    """从 SimPhony 周期元组计算 iter_N * iter_D * iter_M。"""
     if isinstance(cycle, (list, tuple)) and len(cycle) >= 3:
         try:
             return float(cycle[0]) * float(cycle[1]) * float(cycle[2])
@@ -145,7 +143,24 @@ def _cycle_switching(cycle: Any) -> float:
 
 def _memory_latency_value(value: Any) -> float:
     if isinstance(value, dict):
-        return float(value.get("input_latency_s", value.get("total", 0.0)) or 0.0)
+        # 分析镜像：{"input_latency_s": ..., "total_size": ...}。
+        explicit = value.get("input_latency_s", value.get("total"))
+        if explicit is not None:
+            try:
+                return float(explicit)
+            except (TypeError, ValueError):
+                return 0.0
+        # 真实 ONN 仿真器：按内存层级的键 (GLB2_input_latency,
+        # GLB1_output_latency, RF_input_latency, ...)。将它们求和：这些层级是
+        # 单层数据搬运的串行层次阶段。
+        total = 0.0
+        for key, item in value.items():
+            if isinstance(key, str) and key.endswith("_latency"):
+                try:
+                    total += float(item)
+                except (TypeError, ValueError):
+                    continue
+        return total
     if isinstance(value, (int, float)):
         return float(value)
     return 0.0
@@ -159,16 +174,44 @@ def _flatten_sub_archs(by_device: Dict[str, Any]) -> Dict[str, Any]:
     return flattened
 
 
+def _parse_device_key(device: str) -> Dict[str, Any]:
+    """拆分仿真器的 ``<level>_<type>_<idx>_<instance>-<Variant>`` 键。
+
+    代理以“激光器占主导”等方式推理，因此暴露各部分而非原始复合字符串。
+    当键不匹配该形状时（如分析镜像键）返回 ``{}``，保留 ``device`` 作为标识。
+    """
+    head, _, variant = str(device).partition("-")
+    parts = head.split("_")
+    idx_pos = next((i for i in range(1, len(parts)) if parts[i].isdigit()), None)
+    if idx_pos is None or idx_pos < 2 or idx_pos + 1 >= len(parts):
+        return {}
+    return {
+        "level": parts[0],
+        "device_type": "_".join(parts[1:idx_pos]),
+        "instance": "_".join(parts[idx_pos + 1:]),
+        "device_name": variant or None,
+    }
+
+
 def _summarize_device_records(by_device: Dict[str, Any], metric: str) -> List[Dict[str, Any]]:
     rows = []
+    total = 0.0
     for device, record in by_device.items():
         if not isinstance(record, dict):
             continue
-        rows.append({
+        value = float(record.get(metric, 0.0) or 0.0)
+        total += value
+        row = {
             "device": device,
             metric: record.get(metric, 0.0),
             "count": record.get("count"),
             "chip_type": record.get("chip_type"),
-        })
+        }
+        row.update(_parse_device_key(device))
+        rows.append(row)
     rows.sort(key=lambda row: float(row[metric] or 0.0), reverse=True)
+    for row in rows:
+        row[f"{metric}_share"] = (
+            round(float(row[metric] or 0.0) / total, 6) if total else 0.0
+        )
     return rows

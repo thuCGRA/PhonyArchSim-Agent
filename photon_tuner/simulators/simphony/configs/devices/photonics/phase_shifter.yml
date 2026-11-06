@@ -21,7 +21,7 @@ phase_shifter:
       width: 45 # um
       static_power: 0 # mW
       insertion_loss: 0.33 # dB
-      P_pi: 0 # nW level
+      P_pi: 0.00001 # mW（10 nW 级；上游字面记 0，不物理且会假支配 TFLN_EO_PS，此处订正）
       response_time: 2000 # ns
   ITO_PS:
     PDK: ""
@@ -47,3 +47,30 @@ phase_shifter:
       insertion_loss: 0.05 # dB
       P_pi: 0 # mW level
       response_time: 0 # ns
+  IHO_PS: # An Efficient, Fast-Responding, Low-Loss Thermo-Optic Phase Shifter Based on a Hydrogen-Doped Indium Oxide Microheater (Laser & Photonics Reviews 2023)
+    PDK: ""
+    platform: strip-waveguide-550nm   # 550-nm strip; platform per paper
+    ref: "https://doi.org/10.1002/lpor.202201032"
+    type: PhaseShifter
+    exp: True
+    cfgs:
+      length: 10 # um
+      width: 0.55 # um (550-nm strip waveguide)
+      static_power: 0 # mW
+      insertion_loss: 0.5 # dB (excess loss of IHO microheater)
+      P_pi: 9.6 # mW
+      response_time: 970 # ns (rise; fall 980)
+  TFLN_EO_PS: # Electro-optically programmable photonic circuits enabled by wafer-scale integration on thin-film lithium niobate (arXiv 2023, preprint)
+    PDK: ""
+    platform: thin-film LiNbO3
+    ref: "https://arxiv.org/abs/2304.03461"
+    type: PhaseShifter
+    exp: True
+    note: "预印本（arXiv，未同行评审）；width 为折中构造（论文未报道，取 TFLN 条形波导典型宽 1.0um）；P_pi 由 0.6uW@1MHz / 304fJ/pi 换算"
+    cfgs:
+      length: 7000 # um（~7 mm 相移器）
+      width: 1.0 # um（折中构造：论文未报道）
+      static_power: 0 # mW
+      insertion_loss: 0.15 # dB（每 MZI 单元：2xPS+2x耦合器）
+      P_pi: 0.0006 # mW（0.6 uW@1MHz π 切换；304 fJ/pi）
+      response_time: 1.7 # ns（fall；rise 0.5）

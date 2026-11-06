@@ -1,0 +1,16 @@
+# Coverage configuration for the photonic-tuner suite (PDF §7.8.5.2).
+# The vendored SimPhony tree is third-party + largely C-backed, so it is omitted
+# from the project's own coverage accounting.
+[run]
+source = photon_tuner
+branch = True
+omit =
+    photon_tuner/simulators/simphony/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    if __name__ == .__main__.:
+    raise NotImplementedError
+show_missing = True

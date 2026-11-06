@@ -1,4 +1,4 @@
-"""Validate the hierarchical / multi-granularity / adaptive design space."""
+"""校验分层/多粒度/自适应设计空间。"""
 
 import sys
 import unittest
@@ -19,14 +19,14 @@ from photon_tuner.core.search_space import (
 )
 
 
-# Minimal device catalog mirroring discover_device_catalog()'s shape.
+# 镜像 discover_device_catalog() 结构的最小器件目录。
 CATALOG = {
     "mzm": {"LT_MZM": {"cfgs": {"modulation_speed": 25, "testing_bit": 1}, "type": "MZM"}},
     "dac": {"DAC_2": {"cfgs": {"prec": 8}, "type": "DAC"}},
     "adc": {"ADC_SAR_1": {"cfgs": {"prec": 8}, "type": "ADC"}},
 }
 
-# Strict catalog: slow MZM + low-precision DAC/ADC, so feasibility bites.
+# 严格目录：低速 MZM + 低精度 DAC/ADC，使可行性约束生效。
 CATALOG_STRICT = {
     "mzm": {"LT_MZM": {"cfgs": {"modulation_speed": 10, "testing_bit": 1}, "type": "MZM"}},
     "dac": {"DAC_2": {"cfgs": {"prec": 4}, "type": "DAC"}},
@@ -35,18 +35,18 @@ CATALOG_STRICT = {
 
 
 class TestDesignSpaceHierarchy(unittest.TestCase):
-    def test_five_layers_present(self):
+    def test_four_layers_present(self):
         ds = DesignSpace()
         self.assertEqual(
             set(ds.layers.keys()),
-            {"system", "optical_core", "topology", "device", "device_param"},
+            {"architecture", "topology", "device", "device_param"},
         )
 
     def test_layer_of_routes_params(self):
         ds = DesignSpace()
-        self.assertEqual(ds.layer_of("tiles"), "system")
-        self.assertEqual(ds.layer_of("work_freq"), "optical_core")
-        self.assertEqual(ds.layer_of("hbm_bandwidth"), "system")
+        self.assertEqual(ds.layer_of("tiles"), "architecture")
+        self.assertEqual(ds.layer_of("work_freq"), "architecture")
+        self.assertEqual(ds.layer_of("hbm_bandwidth"), "architecture")
         self.assertEqual(ds.layer_of("sharing_policy"), "topology")
 
     def test_device_param_layer_is_fixed(self):
@@ -70,8 +70,10 @@ class TestMultiGranularity(unittest.TestCase):
         ds = DesignSpace()
         self.assertEqual(ds.candidates("hbm_bandwidth"), [512, 1024, 2048])
         self.assertEqual(ds.candidates("glb1_cache_size"), [64, 256, 485, 1024, 4096])
-        self.assertEqual(ds.param_spec("glb1_cache_size")["mode"], "real")
-        self.assertEqual(ds.param_spec("hbm_bandwidth")["mode"], "both")
+        # 原 ``mode`` 字段（analytic/real 分流）已随 analytic 废弃移除：
+        # 仿真只走 real，存储层级参数一律被消费。
+        self.assertNotIn("mode", ds.param_spec("glb1_cache_size"))
+        self.assertNotIn("mode", ds.param_spec("hbm_bandwidth"))
 
     def test_topology_params_are_enums(self):
         ds = DesignSpace()
@@ -89,7 +91,7 @@ class TestRealFeasibility(unittest.TestCase):
     def test_work_freq_violation_detected_and_clamped(self):
         ds = DesignSpace(device_catalog=CATALOG_STRICT)
         hw = default_hardware()
-        hw["arch"]["optical_core"]["work_freq"] = 25  # > MZM symbol rate 10 GHz
+        hw["arch"]["optical_core"]["work_freq"] = 25  # 大于 MZM 符号速率 10 GHz
         violations = ds.violations(hw)
         self.assertEqual(len(violations), 1)
         self.assertEqual(violations[0]["param"], "work_freq")
@@ -99,8 +101,8 @@ class TestRealFeasibility(unittest.TestCase):
     def test_precision_violation_detected_and_clamped(self):
         ds = DesignSpace(device_catalog=CATALOG_STRICT)
         hw = default_hardware()
-        hw["arch"]["optical_core"]["precision"]["in_bit"] = 8  # > DAC prec 4
-        hw["arch"]["optical_core"]["precision"]["out_bit"] = 8  # > ADC prec 4
+        hw["arch"]["optical_core"]["precision"]["in_bit"] = 8  # 大于 DAC 精度 4
+        hw["arch"]["optical_core"]["precision"]["out_bit"] = 8  # 大于 ADC 精度 4
         violations = {v["param"] for v in ds.violations(hw)}
         self.assertEqual(violations, {"precision_in_bit", "precision_out_bit"})
         fixed = ds.normalize(hw)
@@ -108,7 +110,7 @@ class TestRealFeasibility(unittest.TestCase):
         self.assertEqual(fixed["arch"]["optical_core"]["precision"]["out_bit"], 4)
 
     def test_no_catalog_no_violations(self):
-        ds = DesignSpace()  # no device_catalog
+        ds = DesignSpace()  # 未提供 device_catalog
         hw = default_hardware()
         hw["arch"]["optical_core"]["work_freq"] = 99
         self.assertEqual(ds.violations(hw), [])
@@ -122,7 +124,7 @@ class TestRealFeasibility(unittest.TestCase):
         }
         ds = DesignSpace(device_catalog=catalog)
         hw = default_hardware()
-        hw["arch"]["optical_core"]["work_freq"] = 20  # > DAC 18, ADC 14, PD 10
+        hw["arch"]["optical_core"]["work_freq"] = 20  # 大于 DAC 18、ADC 14、PD 10
         constraints = {v["constraint"] for v in ds.violations(hw)}
         self.assertEqual(constraints, {
             "work_freq <= dac.sample_rate",
@@ -132,7 +134,7 @@ class TestRealFeasibility(unittest.TestCase):
 
 
 class TestInstanceChoices(unittest.TestCase):
-    """Instance-level device-type switches (laser_source / splitter_kind)."""
+    """实例级器件类型切换（laser_source / splitter_kind）。"""
 
     def test_device_layer_params_exposed(self):
         ds = DesignSpace()
@@ -195,15 +197,16 @@ class TestBuildDesignSpace(unittest.TestCase):
         ds = build_design_space(flat, device_catalog=CATALOG)
         self.assertEqual(ds.candidates("work_freq"), [5, 10, 25])
         self.assertEqual(ds.candidates("num_wavelength"), [8, 16])
-        # Unmentioned params keep their layered defaults.
+        # 未提及的参数保持其分层默认值。
         self.assertEqual(ds.candidates("hbm_bandwidth"), [512, 1024, 2048])
 
-    def test_summary_exposes_layers_and_mode(self):
+    def test_summary_exposes_layers_and_constraints(self):
         ds = DesignSpace(device_catalog=CATALOG)
         rows = {r["parameter"]: r for r in ds.summary()}
-        self.assertEqual(rows["glb1_cache_size"]["layer"], "system")
-        self.assertEqual(rows["glb1_cache_size"]["mode"], "real")
+        self.assertEqual(rows["glb1_cache_size"]["layer"], "architecture")
         self.assertEqual(rows["work_freq"]["constraint"], "work_freq <= mzm.symbol_rate")
+        # 已废弃的 mode 字段不再出现在摘要中。
+        self.assertNotIn("mode", rows["glb1_cache_size"])
 
 
 class TestFlatMemoryIntegration(unittest.TestCase):
@@ -242,7 +245,7 @@ class TestFlatMemoryIntegration(unittest.TestCase):
 class TestL4Topology(unittest.TestCase):
     def test_step_sharing_policy(self):
         hw = default_hardware()
-        # adc_shared (default) -> adc_tia_shared; clamps at the end (no wrap).
+        # adc_shared（默认）→ adc_tia_shared；在末尾钳位（不回绕）。
         stepped = step_arch_parameter(hw, "sharing_policy", 1)
         self.assertEqual(stepped["arch"]["topology"]["sharing_policy"], "adc_tia_shared")
         stepped = step_arch_parameter(stepped, "sharing_policy", 1)
@@ -254,7 +257,7 @@ class TestL4Topology(unittest.TestCase):
             hw, [{"parameter": "laser_distribution", "value": "H*W*N"}]
         )
         self.assertEqual(out["arch"]["topology"]["laser_distribution"], "H*W*N")
-        # An illegal value is clamped back to the first legal candidate.
+        # 非法值会被钳位回第一个合法候选。
         out2 = modify_arch_parameter(
             hw, [{"parameter": "laser_distribution", "value": "bogus"}]
         )

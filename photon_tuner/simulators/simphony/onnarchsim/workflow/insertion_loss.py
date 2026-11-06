@@ -198,7 +198,13 @@ def find_longest_path(
     # dist[start_node] = 0
     start_nodes = [node for node in G if G.in_degree(node) == 0]
     for start_node in start_nodes:
-        node_id = start_node.split("_")[0] if "_" in start_node else start_node
+        # Strip only a trailing replication index ("i0_3" -> "i0"), not the first
+        # underscore-delimited token: mesh instances are named "i_mzi"/"i_pd"/
+        # ... so split("_")[0] would truncate them to "i" and raise KeyError.
+        node_id = start_node
+        head, sep, tail = start_node.rpartition("_")
+        if sep and head and tail.isdigit():
+            node_id = head
         dist[start_node] = instance_weights[node_id]
 
     for u in topo_order:
@@ -231,7 +237,25 @@ def find_longest_path(
                 longest_path = path[target_node] + [target_node]
             else:
                 continue
-    return longest_path, max_insertion_loss
+
+    # Per-component attribution: attribute each step of the winning path to the
+    # instance that incurred it, so the diagnosis layer can say *which* component
+    # loses *how many* dB instead of only reporting the path total.  Losses are
+    # aggregated on the instance id so e.g. 16 replicated MZIs roll up together.
+    def _inst_id(node_name: str) -> str:
+        head, sep, tail = str(node_name).rpartition("_")
+        return head if (sep and head and tail.isdigit()) else str(node_name)
+
+    component_loss: Dict[str, float] = {}
+    for u, v in zip([None] + longest_path[:-1], longest_path):
+        if u is None:
+            step_loss = float(instance_weights.get(_inst_id(v), 0.0))
+        else:
+            step_loss = float(G[u][v]["weight"]) if G.has_edge(u, v) else 0.0
+        key = _inst_id(v)
+        component_loss[key] = round(component_loss.get(key, 0.0) + step_loss, 6)
+
+    return longest_path, max_insertion_loss, component_loss
 
 
 def architecture_insertion_loss(
@@ -256,7 +280,7 @@ def architecture_insertion_loss(
     node_graph, node_instance_weights, node_instances = construct_node_graph(
         node_config, device_db, sub_arch_dims
     )
-    node_longest_path, node_insertion_loss = find_longest_path(
+    node_longest_path, node_insertion_loss, node_component_loss = find_longest_path(
         node_graph, node_instance_weights, node_instances, node_target_device
     )
 
@@ -264,7 +288,7 @@ def architecture_insertion_loss(
         core_config, device_db, node_insertion_loss, sub_arch_dims
     )
 
-    core_longest_path, core_insertion_loss = find_longest_path(
+    core_longest_path, core_insertion_loss, core_component_loss = find_longest_path(
         core_graph, core_instance_weights, core_instances, core_target_device
     )
 
@@ -273,4 +297,6 @@ def architecture_insertion_loss(
         node_insertion_loss,
         core_longest_path,
         core_insertion_loss,
+        node_component_loss,
+        core_component_loss,
     )

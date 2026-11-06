@@ -9,7 +9,7 @@ PF_X makes them loadable without ``execstack``/``patchelf``.
 Run it *inside* the target virtualenv so ``sysconfig`` resolves the right
 site-packages:
 
-    .venv-real/bin/python scripts/env/patch_gnustack.py
+    .venv-simulator/bin/python scripts/env/patch_gnustack.py
 """
 import glob
 import struct

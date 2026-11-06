@@ -1,5 +1,5 @@
-"""Cross-cutting utilities shared across the photonic tuner.
+"""光子调优器共享的跨模块工具。
 
-I/O helpers, progress reporting and small utility functions live here instead
-of in :mod:`photon_tuner.core` (which holds the domain model and data schemas).
+I/O 辅助、进度上报和通用工具函数放在这里，而不是放在
+:mod:`photon_tuner.core`（后者承载领域模型与数据 schema）。
 """

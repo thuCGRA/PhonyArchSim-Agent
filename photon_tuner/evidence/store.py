@@ -1,9 +1,7 @@
-"""SQLite-backed evidence store for search-space ablation records.
+"""基于 SQLite 的搜索空间消融记录证据存储。
 
-Each row is one single-variable perturbation: one parameter, one candidate
-value, one workload.  The store is write-only from the deterministic probe and
-read by the :class:`~photon_tuner.agents.evidence.EvidenceAnalystAgent` and by
-future RAG enrichment.
+每一行对应一次单变量扰动：一个参数、一个候选值、一个工作负载。该存储由
+确定性探针写入，并由后续的解读 / RAG 增强流程读取。
 """
 
 from __future__ import annotations
@@ -45,7 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_workload ON ablation(workload);
 CREATE INDEX IF NOT EXISTS idx_param_workload ON ablation(param, workload);
 """
 
-# (column, key) pairs in INSERT order.
+# 按 INSERT 顺序排列的 (列, 键) 对。
 _COLUMNS: List[str] = [
     "ts", "param", "layer", "workload", "workload_features", "old_value",
     "new_value", "hardware_map", "sub_arch_map", "constraint_result",
@@ -63,7 +61,7 @@ _JSON_KEYS = {
 
 
 class EvidenceStore:
-    """Persist ablation evidence to ``data/evidence.db`` (independent of runs)."""
+    """将消融证据持久化到 ``data/evidence.db``（与运行无关）。"""
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -74,7 +72,7 @@ class EvidenceStore:
         self.conn.commit()
 
     def record(self, record: Dict[str, Any]) -> int:
-        """Insert one ablation record. JSON-serialises structured fields."""
+        """插入一条消融记录，并对结构化字段做 JSON 序列化。"""
         record = dict(record)
         record.setdefault("ts", time.strftime("%Y-%m-%dT%H:%M:%S"))
         values = []
@@ -132,7 +130,7 @@ class EvidenceStore:
         return row
 
     def export(self, path: str | Path | None = None) -> Path:
-        """Dump all records as JSONL (one JSON object per line)."""
+        """将所有记录导出为 JSONL（每行一个 JSON 对象）。"""
         out = Path(path) if path else self.path.with_suffix(".jsonl")
         rows = self.conn.execute("SELECT * FROM ablation ORDER BY id").fetchall()
         with out.open("w", encoding="utf-8") as fh:

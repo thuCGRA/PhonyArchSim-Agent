@@ -1,5 +1,5 @@
-"""Domain model for the photonic DSE framework.
+"""光子 DSE 框架的领域模型。
 
-Search space, design space, objective, topology, workload, and the data schemas
-(``EvaluationResult`` and the per-agent output types) live here.
+搜索空间、设计空间、目标函数、拓扑、工作负载，以及数据模式
+（``EvaluationResult`` 与各智能体的输出类型）均位于此处。
 """

@@ -1,6 +1,5 @@
-"""Shared primitives used by both the analysis and device toolboxes.
+"""分析工具箱与器件工具箱共用的基础组件。
 
-``context.py`` holds :class:`ToolContext`, the context every tool call receives;
-``_report_utils.py`` holds the report-reading helpers shared by the two
-toolboxes.
+``context.py`` 存放 :class:`ToolContext`（每次工具调用接收的上下文）；
+``_report_utils.py`` 存放两个工具箱共用的报告读取辅助函数。
 """

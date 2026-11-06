@@ -1,4 +1,4 @@
-"""Dependency-free helper functions shared across the photonic tuner."""
+"""光子调优器共享的、无外部依赖的辅助函数。"""
 
 from __future__ import annotations
 
@@ -7,12 +7,11 @@ from typing import Any, Dict, Sequence
 
 
 def clamp_to_candidates(value: int, candidates: Sequence[int], direction: int) -> int:
-    """Return the candidate nearest ``value``, or the adjacent one in ``direction``.
+    """返回最接近 ``value`` 的候选值，或沿 ``direction`` 方向的相邻候选值。
 
-    When ``value`` is not itself a legal candidate, the closest candidate is
-    returned.  Otherwise the candidate immediately before (``direction=-1``) or
-    after (``direction=+1``) is returned, clamped so the result never leaves the
-    sorted candidate list.
+    当 ``value`` 本身不是合法候选时，返回最接近的候选；否则返回其前一个
+    （``direction=-1``）或后一个（``direction=+1``）候选，并钳制结果使其
+    始终不超出排序后的候选列表。
     """
     legal = sorted({int(candidate) for candidate in candidates})
     if not legal:
@@ -26,12 +25,10 @@ def clamp_to_candidates(value: int, candidates: Sequence[int], direction: int) -
 
 
 def layer_group(name: str) -> str:
-    """Map a photonic / quantised-NN layer name to a coarse operator group.
+    """将光子 / 量化神经网络层名映射为粗粒度的算子组。
 
-    Order matters here: ``"qkv"`` must be tested *before* the attention tokens,
-    because ``"qkv"`` itself contains ``"qk"``.  In the original ordering every
-    fused QKV projection was reported as ``attention`` and the
-    ``qkv_projection`` branch was unreachable.
+    此处顺序很重要：``"qkv"`` 必须先于 attention 相关 token 判断，
+    因为 ``"qkv"`` 本身包含 ``"qk"``。
     """
     lowered = name.lower()
     if "qkv" in lowered or any(token in lowered for token in ("_q", "_k", "_v")):
@@ -56,7 +53,7 @@ def layer_group(name: str) -> str:
 
 
 def operator_features(layer_name: str) -> Dict[str, Any]:
-    """Extract lightweight structural features from a layer name."""
+    """从层名中提取轻量结构特征。"""
     head = _int_match(layer_name, r"head(\d+)")
     request = _int_match(layer_name, r"req(\d+)")
     tiling = _int_match(layer_name, r"tiling[_-]?(\d+)")

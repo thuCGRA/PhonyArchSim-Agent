@@ -4,7 +4,7 @@
 #   source scripts/env/activate_real.sh
 _PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-export VIRTUAL_ENV="$_PROJECT_ROOT/.venv-real"
+export VIRTUAL_ENV="$_PROJECT_ROOT/.venv-simulator"
 export PATH="$VIRTUAL_ENV/bin:$PATH"
 export UV_CACHE_DIR="$_PROJECT_ROOT/.tools/cache"
 export UV_PYTHON_INSTALL_DIR="$_PROJECT_ROOT/.tools/python"

@@ -1,21 +1,17 @@
-"""L4 topology / circuit search-space templates.
+"""L4 拓扑 / 电路搜索空间模板。
 
-SimPhony's circuit-level knobs live in the core ``netlist`` and are
-string/expression based (``scaling_rules``, ``temporal_accum_factor``,
-``laser_power_distribution``).  Those must never be hand-written by the LLM, so
-this module maps small, white-listed *semantic* enums to the concrete netlist
-values.  The search space therefore stays a controlled template space rather
-than free-form connectivity.
+SimPhony 的电路级旋钮位于核心 ``netlist`` 中，且基于字符串/表达式
+（``scaling_rules``、``temporal_accum_factor``、``laser_power_distribution``）。
+这些值绝不能由 LLM 手写，因此本模块将少量白名单化的语义枚举映射为具体的
+netlist 值，使搜索空间保持为受控的模板空间，而非任意连接。
 
-The three exposed enums are:
+暴露的三个枚举如下：
 
-* ``sharing_policy``  -- how DAC/ADC/TIA are shared across the crossbar.  Only
-  the ADC (instance ``i2``) and TIA (instance ``i8``) scaling rules change;
-  every photonic instance keeps the ``dptc.yml`` default so device counts stay
-  coupled to the crossbar topology.
-* ``temporal_accum``   -- temporal (time-multiplexed) accumulation depth.
-* ``laser_distribution`` -- optical power distribution factor (a white-listed
-  expression over R/H/C/W/N).
+* ``sharing_policy``  -- DAC/ADC/TIA 在 crossbar 上的共享方式。仅 ADC
+  （实例 ``i2``）与 TIA（实例 ``i8``）的缩放规则会改变；每个光子实例保持
+  ``dptc.yml`` 默认值，使器件数量与 crossbar 拓扑保持耦合。
+* ``temporal_accum``   -- 时间（时分复用）累加深度。
+* ``laser_distribution`` -- 光功率分配因子（基于 R/H/C/W/N 的白名单表达式）。
 """
 
 from __future__ import annotations
@@ -23,16 +19,28 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 # --------------------------------------------------------------------------- #
-# Candidate enums (mirrored by design_space.py's ``topology`` layer).
+# 候选枚举（与 design_space.py 的 ``topology`` 层保持一致）。
 # --------------------------------------------------------------------------- #
 
 SHARING_POLICIES: List[str] = ["no_sharing", "adc_shared", "adc_tia_shared"]
 
-# ADC (i2) and TIA (i8) scaling-rule overrides per sharing policy.
+# 每种共享策略对应的 ADC 与 TIA 缩放规则覆盖。DPTC crossbar 将 ADC/TIA 实例
+# 命名为 ``i2`` / ``i8``；MZI-mesh netlist 将其命名为 ``i_adc`` / ``i_tia``。
+# 同时写入两种命名，使该旋钮在任一核心下都生效
+# （未知键对另一种 netlist 而言只是无副作用）。
 _SHARING_OVERRIDES: Dict[str, Dict[str, str]] = {
-    "no_sharing": {"i2": "H*W*R*C", "i8": "H*W*R*C"},       # every node owns ADC+TIA
-    "adc_shared": {"i2": "(H*W)*R", "i8": "H*W*R*C"},       # LT default: ADC shared per tile
-    "adc_tia_shared": {"i2": "(H*W)*R", "i8": "(H*W)*R"},   # ADC+TIA shared per tile
+    "no_sharing": {                                          # 每个 node 拥有独立的 ADC+TIA
+        "i2": "H*W*R*C", "i8": "H*W*R*C",
+        "i_adc": "H*W*R*C", "i_tia": "H*W*R*C",
+    },
+    "adc_shared": {                                          # LT 默认：ADC 按 tile 共享
+        "i2": "(H*W)*R", "i8": "H*W*R*C",
+        "i_adc": "(H*W)*R", "i_tia": "H*W*R*C",
+    },
+    "adc_tia_shared": {                                      # ADC+TIA 按 tile 共享
+        "i2": "(H*W)*R", "i8": "(H*W)*R",
+        "i_adc": "(H*W)*R", "i_tia": "(H*W)*R",
+    },
 }
 
 TEMPORAL_ACCUM: List[str] = ["off", "default", "deep"]
@@ -46,7 +54,7 @@ DEFAULT_LASER_DISTRIBUTION = "H*W"
 
 
 def apply_sharing_policy(netlist: Dict[str, Any], policy: str) -> None:
-    """Override the ADC/TIA scaling rules for the chosen sharing policy."""
+    """按所选共享策略覆盖 ADC/TIA 缩放规则。"""
     if policy not in SHARING_POLICIES:
         raise ValueError(
             f"Unknown sharing policy {policy!r}; expected one of {SHARING_POLICIES}"
@@ -57,7 +65,7 @@ def apply_sharing_policy(netlist: Dict[str, Any], policy: str) -> None:
 
 
 def apply_temporal_accum(netlist: Dict[str, Any], temporal: str) -> None:
-    """Set the temporal accumulation duration (1 == off)."""
+    """设置时间累加时长（1 表示关闭）。"""
     if temporal not in TEMPORAL_ACCUM:
         raise ValueError(
             f"Unknown temporal accumulation {temporal!r}; expected one of {TEMPORAL_ACCUM}"
@@ -68,12 +76,11 @@ def apply_temporal_accum(netlist: Dict[str, Any], temporal: str) -> None:
 
 
 def apply_laser_distribution(netlist: Dict[str, Any], distribution: str) -> None:
-    """Set the laser power distribution factor.
+    """设置激光功率分配因子。
 
-    ``laser_power_distribution`` is the key the analytic mirror reads;
-    ``laser_power_distribution_factor`` is the key the real ``energy.py`` reads
-    (an upstream field-name mismatch in SimPhony).  Write both so the two modes
-    agree on the same optical power budget.
+    ``laser_power_distribution`` 是解析镜像读取的键；
+    ``laser_power_distribution_factor`` 是真实 ``energy.py`` 读取的键。
+    同时写入两者，使两种模式对光功率预算的解读一致。
     """
     if distribution not in LASER_DISTRIBUTIONS:
         raise ValueError(
@@ -89,7 +96,7 @@ def apply_topology(
     temporal_accum: str,
     laser_distribution: str,
 ) -> None:
-    """Apply all three L4 circuit-level choices to a core netlist."""
+    """将三项 L4 电路级选择应用到核心 netlist。"""
     apply_sharing_policy(netlist, sharing_policy)
     apply_temporal_accum(netlist, temporal_accum)
     apply_laser_distribution(netlist, laser_distribution)

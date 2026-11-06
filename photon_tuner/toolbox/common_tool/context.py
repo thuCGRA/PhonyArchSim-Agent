@@ -1,8 +1,4 @@
-"""Shared context passed to every toolbox call from any agent.
-
-Pulled out of ``analysis_tools.py`` so the device toolbox no longer has to
-import a dataclass from the analysis toolbox (which was a reverse dependency).
-"""
+"""任何代理的每次工具箱调用都会接收的共享上下文。"""
 
 from __future__ import annotations
 
@@ -15,7 +11,7 @@ from photon_tuner.core.schemas import EvaluationResult
 
 @dataclass
 class ToolContext:
-    """Shared context passed to every toolbox call from any agent."""
+    """任何代理的每次工具箱调用都会接收的共享上下文。"""
 
     output_dir: Path
     evaluation: Optional[EvaluationResult] = None

@@ -1,7 +1,7 @@
-"""Tool-related dataclasses, separated from the business schemas.
+"""工具相关的数据类，与业务 schema 分离。
 
-``ToolSpec`` describes a tool to the LLM (name + description + input schema);
-``ToolResult`` is what a tool returns after execution.
+``ToolSpec`` 向 LLM 描述一个工具（名称 + 描述 + 输入 schema）；
+``ToolResult`` 是工具执行后的返回值。
 """
 
 from __future__ import annotations

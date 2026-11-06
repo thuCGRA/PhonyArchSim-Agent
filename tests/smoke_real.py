@@ -1,7 +1,7 @@
-"""Smoke test: run the real SimPhony ONNArchSimulator end-to-end on CPU.
+"""冒烟测试：在 CPU 上端到端运行真实 SimPhony ONNArchSimulator。
 
-Runnable from anywhere (it chdir's into the writable SimPhony checkout so that
-``memory.py`` resolves ``./cacti`` and ``./configs/memory`` correctly)::
+可从任意位置运行（它会 chdir 到可写的 SimPhony checkout，使 ``memory.py`` 正确解析
+``./cacti`` 与 ``./configs/memory``）::
 
     source scripts/env/activate_real.sh
     python tests/smoke_real.py
@@ -16,12 +16,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SIMPHONY_ROOT = PROJECT_ROOT / "photon_tuner" / "simulators" / "simphony"
 TESTS_DIR = Path(__file__).resolve().parent
 
-# memory.py / CACTI resolve relative to the SimPhony checkout root.
+# memory.py / CACTI 相对 SimPhony checkout 根目录解析。
 os.chdir(SIMPHONY_ROOT)
 
 sys.path.insert(0, str(SIMPHONY_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT))
-sys.path.insert(0, str(TESTS_DIR))  # for ``factory``
+sys.path.insert(0, str(TESTS_DIR))  # 用于导入 ``factory``
 
 from factory import build_model  # noqa: E402
 from onnarchsim.simulator import ONNArchSimulator  # noqa: E402

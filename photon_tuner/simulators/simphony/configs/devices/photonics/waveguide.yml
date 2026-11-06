@@ -9,3 +9,14 @@ waveguide:
       width: 500 # nm
       type: strip
       insertion_loss: 0.11 # 0.11 dB/cm
+  WG_SiN_Strip_650nm_VisNIR: # SiN integrated photonic components in the Visible to Near-Infrared spectral region (Opt. Express 2024)
+    PDK: ""
+    platform: Si3N4 (SiN), visible-NIR
+    ref: "https://doi.org/10.1364/OE.514505"
+    type: Waveguide
+    exp: True
+    cfgs:
+      mode: single
+      width: 650 # nm（截面 140x650 nm）
+      type: strip
+      insertion_loss: 2.4 # dB/cm（TE@750nm；TM 1.6）
