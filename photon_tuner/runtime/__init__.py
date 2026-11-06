@@ -1,10 +1,7 @@
-"""Runtime for the photonic multi-agent DSE framework.
+"""基于 LangGraph 的光子 DSE 框架运行时。
 
-Two layers live together here:
-
-- the *agent engine* (``react_loop`` / ``llm_completion`` / ``results`` /
-  ``tool_specs_for_prompt``) -- the reusable machinery a single agent runs on;
-- the *top-level orchestration* (``tuner.MultiAgentTuner``) -- the one entry
-  point that strings the four agents, the simulator, and the history store into
-  the tuning loop.
+编排逻辑位于 :mod:`photon_tuner.runtime.orchestrator`（``DeepAgentTuner``），
+它在 SimPhony 适配器外围按固定顺序
+（model -> architecture -> topology -> device -> solution）运行五个深度角色智能体，
+并保持 keep-best / 禁用手纹 / 打包运行目录的可复现性。
 """

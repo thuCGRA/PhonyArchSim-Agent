@@ -7,3 +7,13 @@ micro_comb:
     cfgs:
       width: 1184 # nm
       length: 1184 # um
+  MC_Si3N4_DKS_100GHz: # Microresonator-based solitons for massively parallel coherent optical communications (Nature 2017)
+    PDK: ""
+    platform: Si3N4 (SiN)
+    ref: "https://doi.org/10.1038/nature22387"
+    type: micro_comb
+    exp: True
+    note: "length 为半径推导值（直径=2x240um）；width 为耦合点波导截面 0.8x1.65um2"
+    cfgs:
+      width: 1650 # nm（耦合点谐振腔波导宽，0.8x1.65 um^2）
+      length: 480 # um（谐振腔直径=2x半径 240um，推导值）

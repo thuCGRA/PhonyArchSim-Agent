@@ -9,3 +9,15 @@ mrr_rerouter:
       length: 4.8 # um
       width: 4.8 # um
       insertion_loss: 0.93 # dB
+  MRR_THERMAL: # Ultralow-crosstalk, strictly non-blocking microring-based optical switch (Photonics Research 2019)
+    PDK: ""
+    platform: Si photonics (thermal)
+    ref: "https://doi.org/10.1364/PRJ.7.000155"
+    type: ring
+    exp: True
+    note: "length/width 为折中构造：论文未单独报道单环尺寸，由自报 fabric 1.5x2.4mm2 / 32 环均摊推导（sqrt(1500*2400/32)≈335um）"
+    cfgs:
+      static_power: 10.0 # mW（单环半 FSR 调谐，论文 8-10 mW 取上限）
+      length: 335 # um（折中构造：fabric 面积/环数 均摊推导）
+      width: 335 # um（同上）
+      insertion_loss: 0.5 # dB（on-resonance drop 态；through 态 0.1）

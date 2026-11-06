@@ -1,0 +1,85 @@
+{
+  "arch": {
+    "system": {
+      "tiles": 8,
+      "cores_per_tile": 4,
+      "dataflow": "output_stationary",
+      "op_type": "MVM"
+    },
+    "optical_core": {
+      "type": "Crossbar",
+      "coherent": true,
+      "universal": true,
+      "height": 16,
+      "width": 16,
+      "num_wavelength": 16,
+      "work_freq": 10,
+      "precision": {
+        "in_bit": 8,
+        "w_bit": 8,
+        "out_bit": 8
+      }
+    },
+    "topology": {
+      "core_kind": "dptc_crossbar",
+      "node_kind": "dode",
+      "sharing_policy": "adc_shared",
+      "temporal_accum": "default",
+      "laser_distribution": "H*W"
+    },
+    "memory": {
+      "HBM": {
+        "read_energy": 62.4,
+        "write_energy": 62.4,
+        "bandwidth": 1024
+      },
+      "GLB2": {
+        "cache_size": 485,
+        "block_size": 8
+      },
+      "GLB1": {
+        "cache_size": 485,
+        "block_size": 8
+      },
+      "RF": {
+        "cache_size": 485,
+        "block_size": 8
+      }
+    }
+  },
+  "devices": {
+    "core": {
+      "mzm": "LT_MZM",
+      "dac": "DAC_2",
+      "adc": "ADC_SAR_1",
+      "tia": "TIA_1",
+      "waveguide": "WG_Single_Strip",
+      "mrr_rerouter": "LT_MRR_REROUTER",
+      "laser_splitter": "Customized_Laser_Splitter",
+      "micro_comb": "LT_Micro_Comb",
+      "on_chip_laser": "Customized_Laser",
+      "laser_source": "on_chip",
+      "splitter_kind": "laser_splitter"
+    },
+    "node": {
+      "phase_shifter": "MEMS_PS",
+      "photodetector": "LT_PD",
+      "coupler": "LT_DC_2x2",
+      "y_branch": "LT_Y_Branch"
+    },
+    "mesh": {
+      "core": {
+        "off_chip_laser": "LT_Laser",
+        "photodetector": "LT_PD",
+        "adc": "ADC_SAR_1",
+        "tia": "TIA_1",
+        "dac": "DAC_2",
+        "waveguide": "WG_Single_Strip"
+      },
+      "node": {
+        "coupler": "LT_DC_2x2",
+        "phase_shifter": "IHO_PS"
+      }
+    }
+  }
+}

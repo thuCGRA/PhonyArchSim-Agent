@@ -1,39 +1,64 @@
 # ---- Python bytecode / packaging ----
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
 *.egg-info/
 build/
 dist/
 
 # ---- virtualenvs / tooling caches ----
-.venv-real/
-.venv/
+.venv*/
 venv/
 .tools/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # ---- secrets: never commit real credentials (commit llm.example.json instead) ----
 configs/llm.json
+# api_keys.py has an `API_KEY = "..."` slot that may hold a real key: keep it local.
+configs/api_keys.py
+.env
+.env.*
 
 # ---- runtime output & local databases ----
 runs/*
 !runs/.gitkeep
+.runs_*/
 *.db
+*.sqlite
+*.sqlite-journal
+
+# ---- generated reports (re-derive with baselines.compare) ----
+reports/
+
+# ---- test / coverage artifacts ----
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
 
 # ---- throwaway scratch + personal notes ----
 .scratch/
 instruction.txt
+ITERATION_SUMMARY.md
 scripts/misc/pdf_extract.py
 
-# ---- third-party papers (copyright: link from README instead) ----
-docs/
+# ---- backups / editor leftovers ----
+*.bak
+*.orig
+*.rej
+*~
+
+# ---- literature / survey research material (local only) ----
+.research/
+refs/
+docs/papers/
 
 # ---- vendored third-party SimPhony: build/runtime artifacts ----
 # (source + LICENSE + VENDORED.md are kept; binaries are regenerated locally)
 photon_tuner/simulators/simphony/cacti/cacti
 photon_tuner/simulators/simphony/cacti/cacti.i
-photon_tuner/simulators/simphony/cacti/obj_dbg/
-photon_tuner/simulators/simphony/cacti/obj_/
+photon_tuner/simulators/simphony/cacti/obj_*/
 photon_tuner/simulators/simphony/runs/
 
 # ---- editor / OS noise ----

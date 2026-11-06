@@ -1,7 +1,7 @@
 adc:
   ADC_SAR_1: # A 10GS/s 8b 25fJ/c-s 2850um2 Two-Step Time-Domain ADC Using Delay-Tracking Pipelined-SAR TDC with 500fs Time Step in 14nm CMOS Technology
     PDK: ""
-    ref: "https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9731625"
+    ref: "https://doi.org/10.1109/isscc42614.2022.9731625"
     type: ADC
     exp: True
     cfgs:
@@ -11,3 +11,58 @@ adc:
       prec: 8 # bit
       power: 14.8 # mW
       sample_rate: 10 # GSPS
+  ADC_SAR_90GS: # A 90GS/s 8b 667mW 64x Interleaved SAR ADC in 32nm Digital SOI CMOS (ISSCC 2014)
+    PDK: ""
+    platform: CMOS-32nm-SOI   # paper: 32nm Digital SOI CMOS
+    ref: "https://doi.org/10.1109/ISSCC.2014.6757477"
+    type: ADC
+    exp: True
+    cfgs:
+      tech: 32 # nm
+      type: sar
+      area: 450000 # um^2 (0.45 mm2)
+      prec: 8 # bit (SNDR 33-36 dB -> ENOB ~5.2-5.7; search-space out_bit cap decision pending)
+      power: 667 # mW
+      sample_rate: 90 # GSPS (measured to 100)
+  ADC_SAR_4P8GS_LP: # An 8-bit 4.8-GS/s Four-Channel Time-Interleaved SAR ADC With Ping-Pong Comparators (JSSC 2026)
+    PDK: ""
+    platform: CMOS-28nm
+    ref: "https://doi.org/10.1109/jssc.2026.3677867"
+    type: ADC
+    exp: True
+    note: "area 为折中构造：论文未报道面积，按 28nm 四通道 TI-SAR 保守估算 6000um2（非论文值）"
+    cfgs:
+      tech: 28 # nm
+      type: sar
+      area: 6000 # um^2（折中构造：论文未报道，28nm 四通道 TI-SAR 估算）
+      prec: 8 # bit（SNDR 44.3 dB -> ENOB ~7.1）
+      power: 10.4 # mW（含 buffer 与校准）
+      sample_rate: 4.8 # GSPS
+  ADC_SAR_2GS_LP: # 折中构造（无单一论文来源）：锚定 ADC_SAR_1(14nm/10GS/s/14.8mW/0.00285mm2) 降速+老节点
+    PDK: ""
+    platform: CMOS-28nm（构造）
+    ref: ""
+    type: ADC
+    exp: True
+    note: "折中构造，非任何论文实测值：以 ADC_SAR_1(14nm,10GS/s,14.8mW,0.00285mm2) 为锚，降速至 2GS/s 并改用 28nm → 功耗大幅下降、面积随节点上升。补齐 power×area 包络的'极低功耗'端点。"
+    cfgs:
+      tech: 28 # nm（构造）
+      type: sar
+      prec: 8 # bit
+      sample_rate: 2 # GSPS（构造）
+      power: 1.5 # mW（构造）
+      area: 9000 # um^2（构造，0.009 mm2）
+  ADC_SAR_30GS: # 折中构造（无单一论文来源）：ADC_SAR_1 与 ADC_SAR_90GS 之间的 16nm 中速点
+    PDK: ""
+    platform: CMOS-16nm（构造）
+    ref: ""
+    type: ADC
+    exp: True
+    note: "折中构造，非任何论文实测值：锚定 ADC_SAR_1(14nm,10GS/s,14.8mW,0.00285mm2) 与 ADC_SAR_90GS(32nm,90GS/s,667mW,0.45mm2)，取 16nm 时间交织中速点，功耗与面积按速率折算。使 10-30GHz 区间首次有低功耗 ADC 可选。"
+    cfgs:
+      tech: 16 # nm（构造）
+      type: sar
+      prec: 8 # bit
+      sample_rate: 30 # GSPS（构造）
+      power: 60 # mW（构造）
+      area: 2500 # um^2（构造，0.0025 mm2）

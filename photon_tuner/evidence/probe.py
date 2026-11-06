@@ -1,11 +1,9 @@
-"""Single-variable ablation probe (the deterministic verification harness).
+"""单变量消融探针（确定性验证框架）。
 
-For every (parameter, candidate value, workload) it perturbs the baseline
-hardware, checks constraints, injects into SimPhony, *reads back* the injected
-sub-architecture to confirm the parameter landed, simulates, and records which
-metrics moved.  No LLM is involved -- this is the measurement layer; the
-:class:`~photon_tuner.agents.evidence.EvidenceAnalystAgent` interprets the
-resulting evidence afterwards.
+对每个 (参数, 候选值, 工作负载) 组合，它扰动基线硬件、检查约束、注入
+SimPhony、*读回*注入后的子架构以确认参数已生效、进行仿真，并记录哪些指标
+发生了变化。整个过程不涉及 LLM——这是纯测量层，证据写入
+:class:`~photon_tuner.evidence.store.EvidenceStore` 供后续解读。
 """
 
 from __future__ import annotations
@@ -17,6 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from photon_tuner.core.search_space import DesignSpace
 from photon_tuner.core.objective import metrics_with_objective
 from photon_tuner.core.workload import total_macs
+from photon_tuner.simulators.netlist import first_key
 from photon_tuner.core.search_space import (
     default_hardware,
     materialize_hardware,
@@ -32,17 +31,18 @@ from photon_tuner.evidence.workload_features import workload_features
 
 
 def _memory_energy_pj(report: Dict[str, Any]) -> float:
-    """Total memory energy (pJ). Not part of the objective; recorded separately."""
+    """总内存能耗（pJ）。不属于目标函数，单独记录。"""
     mem = report.get("memory")
     if not isinstance(mem, dict):
         return 0.0
     energy = mem.get("energy")
     if not isinstance(energy, dict):
         return 0.0
-    lt = energy.get("LT")
-    if not isinstance(lt, dict):
+    # 报告按子架构名（现为 ``core_kind``）分组一层；取唯一子架构即可。
+    branch = energy.get(first_key(energy))
+    if not isinstance(branch, dict):
         return 0.0
-    return sum(float(v) for v in lt.values() if isinstance(v, (int, float)))
+    return sum(float(v) for v in branch.values() if isinstance(v, (int, float)))
 
 
 def _pct(after: float, baseline: float) -> float:
@@ -64,7 +64,7 @@ def _metric_deltas(baseline: Dict[str, Any], after: Dict[str, Any]) -> Dict[str,
 
 
 class SearchSpaceProbe:
-    """Deterministic ablation harness wired to a real-mode ``SimphonyAdapter``."""
+    """连接真实模式 ``SimphonyAdapter`` 的确定性消融框架。"""
 
     def __init__(
         self,
@@ -84,24 +84,33 @@ class SearchSpaceProbe:
         self.device_variants = device_variants or {}
         self._run_seq = 0
 
-    # -- evaluation -------------------------------------------------------- #
+    # -- 评估 -------------------------------------------------------------- #
 
     def evaluate(self, hardware: Dict[str, Any], tag: str) -> Dict[str, Any]:
-        """Inject + read back + simulate one hardware config."""
+        """注入 + 读回 + 仿真一个硬件配置。"""
         hw = materialize_hardware(hardware)
         run_dir = self.output_root / tag
         run_dir.mkdir(parents=True, exist_ok=True)
         sub_arch, report = self.adapter.evaluate_with_readback(hw, run_dir)
         energy_pj = float(report["metrics"]["energy_pj"])
-        macs = total_macs(report["workload"]["partition_cycles"]["LT"])
+        area_um2 = float(report["metrics"]["area_um2"])
+        latency_s = float(report["metrics"]["latency_s"])
+        _cycles = report["workload"]["partition_cycles"]
+        macs = total_macs(_cycles[first_key(_cycles)])
+        # 吞吐归一化（与 SimPhonyAdapter.evaluate 一致）：面积按单位吞吐归一。
+        throughput = macs / latency_s if latency_s > 0 else 0.0
         metrics = {
-            "latency_s": float(report["metrics"]["latency_s"]),
+            "latency_s": latency_s,
             "energy_pj": energy_pj,
-            "area_um2": float(report["metrics"]["area_um2"]),
+            "area_um2": area_um2,
             "total_macs": macs,
+            "throughput_mac_per_s": throughput,
             "pJ_per_mac": energy_pj / macs if macs else energy_pj,
+            "area_um2_per_mac_per_s": area_um2 / throughput if throughput > 0 else area_um2,
             "core_insertion_loss": float(
-                report["insertion_loss"]["LT"]["core_insertion_loss"]
+                report["insertion_loss"][first_key(report["insertion_loss"])][
+                    "core_insertion_loss"
+                ]
             ),
         }
         metrics = metrics_with_objective(metrics, hw, self.search_space)
@@ -117,12 +126,12 @@ class SearchSpaceProbe:
     def run_baseline(
         self, hardware: Dict[str, Any], workload_name: str, tag: str = "baseline"
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Evaluate the baseline once and extract workload features."""
+        """评估一次基线并提取工作负载特征。"""
         result = self.evaluate(hardware, tag)
         features = workload_features(workload_name, result["report"])
         return result, features
 
-    # -- perturbation ------------------------------------------------------ #
+    # -- 扰动 -------------------------------------------------------------- #
 
     def _record(
         self,
@@ -187,7 +196,7 @@ class SearchSpaceProbe:
         workload_name: str,
         max_values: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """Probe every candidate value of one architecture parameter."""
+        """探测一个架构参数的每个候选值。"""
         layer = self.design_space.layer_of(param)
         candidates = self.design_space.candidates(param)
         old_value = self.design_space.get(baseline_hw, param)
@@ -204,7 +213,12 @@ class SearchSpaceProbe:
             perturbed = copy.deepcopy(baseline_hw)
             self.design_space.set(perturbed, param, value)
 
-            violations = self.design_space.violations(perturbed)
+            # 数值跨层违规 + 拓扑物理强制值违规：后者表示"这个取值在该拓扑下根本
+            # 装不出来"，与"被钳位到最近的合法候选"必须区分开，否则证据会把
+            # 一个物理上不存在的取值记为 clamped。
+            violations = self.design_space.violations(
+                perturbed
+            ) + self.design_space.forced_violations(perturbed)
             normalized = self.design_space.normalize(perturbed)
             eff_value = self.design_space.get(normalized, param)
 
@@ -253,7 +267,7 @@ class SearchSpaceProbe:
         workload_name: str,
         max_values: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """Probe every library variant of one device type at ``core``/``node``."""
+        """在 ``core``/``node`` 层级探测某类器件的每个库变体。"""
         candidates = self.device_variants.get(device_type, [])
         old_value = baseline_hw.get("devices", {}).get(level, {}).get(device_type)
         hardware_map = ["devices", level, device_type]

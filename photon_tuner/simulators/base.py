@@ -1,10 +1,9 @@
-"""Simulator adapter interface for the photonic DSE framework.
+"""光子 DSE 框架的模拟器适配器接口。
 
-An adapter is the single seam between the simulator-independent agents and a
-concrete simulator (the analytic mirror or the real SimPhony engine).  Each
-adapter turns a photonic hardware configuration into a normalised
-:class:`~photon_tuner.core.schemas.EvaluationResult`, so no agent code ever
-imports a specific simulator.
+适配器是模拟器无关的智能体与具体模拟器（解析镜像或真实 SimPhony 引擎）之间的唯一
+接缝。每个适配器把一份光子学硬件配置转换为标准化的
+:class:`~photon_tuner.core.schemas.EvaluationResult`，因此任何智能体代码都无需直接
+导入某个具体的模拟器。
 """
 
 from __future__ import annotations
@@ -18,22 +17,22 @@ from photon_tuner.core.schemas import EvaluationResult
 
 
 class SimulatorAdapter(ABC):
-    """Contract every simulator adapter must satisfy."""
+    """每个模拟器适配器都必须满足的契约。"""
 
     @abstractmethod
     def evaluate(self, hardware: Dict[str, Any], iteration: int) -> EvaluationResult:
-        """Run one design point and return its normalised artifacts."""
+        """运行一个设计点并返回其标准化产物。"""
 
     @abstractmethod
     def schema(self) -> Dict[str, Any]:
-        """Return the search-space constraints and required simulator fields."""
+        """返回搜索空间约束与所需的模拟器字段。"""
 
 
 class GenericFileEvaluationAdapter(SimulatorAdapter):
-    """Replay adapter that reads precomputed evaluation files from a run directory.
+    """从运行目录读取预计算求值文件的回放适配器。
 
-    This lets the agents be driven over an already-produced run (for example a
-    real SimPhony run) without invoking the simulator again.
+    这让智能体可以基于已产出的运行结果（例如一次真实的 SimPhony 运行）被驱动，而无需
+    再次调用模拟器。
     """
 
     def __init__(
@@ -82,7 +81,7 @@ class GenericFileEvaluationAdapter(SimulatorAdapter):
 
 
 def _locate(run_dir: Path, preferred: str, fallback: str) -> Path:
-    """Pick ``preferred`` when present, otherwise ``fallback``, under ``run_dir``."""
+    """在 ``run_dir`` 下，若 ``preferred`` 存在则选它，否则选 ``fallback``。"""
     candidate = run_dir / preferred
     if candidate.exists():
         return candidate

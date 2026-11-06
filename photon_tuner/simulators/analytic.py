@@ -1,24 +1,21 @@
-"""Dependency-free analytic photonic evaluator.
+"""无第三方依赖的光子学解析求值器。
 
-This module is a *formula-level mirror* of SimPhony's device / circuit /
-architecture workflows.  It reads the exact same device and core / node netlist
-YAMLs that SimPhony consumes and reproduces its device counting, power
-initialisation, energy, area (bounding-box), and insertion-loss (longest-path)
-calculations using only the Python standard library plus PyYAML.
+本模块是 SimPhony 器件/电路/架构工作流的公式级镜像：读取与 SimPhony 完全相同的器件
+与核心/节点网表 YAML，仅用 Python 标准库加 PyYAML 复现其器件计数、功耗初始化、
+能耗、面积（包围盒）与插入损耗（最长路径）计算。
 
-It exists so the whole multi-agent DSE loop can be exercised *offline*, without
-PyTorch / TorchONN / mmengine / networkx.  When those dependencies are present
-the :class:`photon_tuner.simulators.simphony.SimphonyAdapter` runs the real
-``ONNArchSimulator`` instead; both produce the same fine-grained report schema
-(see ``simphony/onnarchsim/report.py``).
+它让整个多智能体 DSE 循环可以在离线环境下运行（无需 PyTorch / TorchONN / mmengine /
+networkx）。当这些依赖存在时，:class:`photon_tuner.simulators.simphony.SimphonyAdapter`
+会改用真实的 ``ONNArchSimulator``；两者产出相同的细粒度报告结构
+（见 ``simphony/onnarchsim/report.py``）。
 
-The *workload* under evaluation is named and loadable (see
-:mod:`photon_tuner.core.workload` and ``configs/workloads.json``).  The legacy
-``synthetic`` three-layer baseline is still the default, but real encoder
-workloads (``vit_base`` / ``vit_small`` / ``vit_tiny``) can be selected; their
-per-layer cycle tuples are computed with SimPhony's own partition arithmetic, so
-the per-layer demand profile responds to architecture edits.  A native
-``energy.by_layer`` breakdown is reported alongside it.
+子架构（网表）装配已拆分到 :mod:`photon_tuner.simulators.netlist`——那部分是
+**模式无关**的，真实模式同样要读它。本模块为向后兼容继续再导出那几个装配入口。
+
+被评估的 *工作负载* 可命名并加载（见 :mod:`photon_tuner.core.workload` 与
+``configs/workloads.json``）。可选的编码器工作负载（``vit_base`` / ``vit_small`` /
+``vit_tiny``）的逐层循环元组使用 SimPhony 自身的分区算术计算，因此逐层需求曲线会
+随架构编辑而变化。同时上报一个原生的 ``energy.by_layer`` 逐层分解。
 """
 
 from __future__ import annotations
@@ -27,25 +24,29 @@ import math
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-import yaml
-
 from photon_tuner.core.search_space import materialize_hardware
-from photon_tuner.core.topology import (
-    DEFAULT_LASER_DISTRIBUTION,
-    DEFAULT_SHARING_POLICY,
-    DEFAULT_TEMPORAL_ACCUM,
-    apply_topology,
-)
 from photon_tuner.core.workload import (
     DEFAULT_MINIBLOCK,
     build_workload,
-    synthetic_cycles,
-    synthetic_layer_sizes,
+    total_macs,
+)
+
+# 网表装配已迁往 ``netlist`` 模块；此处再导出以保持既有导入路径可用。
+from photon_tuner.simulators.netlist import (  # noqa: F401
+    _WEIGHT_ARRAY_SPECS,
+    _load_yaml_versioned,
+    _tunable_mzi_node,
+    _weight_element_node,
+    build_mesh_sub_arch,
+    build_sub_arch,
+    build_weight_array_sub_arch,
+    load_device_catalog,
+    sub_arch_key,
 )
 
 
 # --------------------------------------------------------------------------- #
-# Expression evaluation (mirrors onnarchsim.workflow.utils.evaluate_factors).
+# 表达式求值（对应 onnarchsim.workflow.utils.evaluate_factors）。
 # --------------------------------------------------------------------------- #
 
 _ALLOWED_FUNCTIONS = {
@@ -74,7 +75,7 @@ def evaluate_factors(
     width: int,
     wavelength: int = 1,
 ) -> int:
-    """Evaluate a SimPhony scaling expression over R/H/C/W/N."""
+    """对 R/H/C/W/N 求值一个 SimPhony 缩放表达式。"""
     if isinstance(expression, int) and not isinstance(expression, bool):
         return expression
     if expression is None:
@@ -93,7 +94,7 @@ def evaluate_factors(
 
 
 def _parse_device_name(device: str) -> Tuple[str, str, str, str, str]:
-    """Split ``part_type_index_instance-name`` into its five components."""
+    """把 ``part_type_index_instance-name`` 拆分为五个组成部分。"""
     identifier, name = device.split("-", 1)
     split_right = identifier.rsplit("_", 2)
     if len(split_right) != 3:
@@ -104,7 +105,7 @@ def _parse_device_name(device: str) -> Tuple[str, str, str, str, str]:
 
 
 # --------------------------------------------------------------------------- #
-# Minimal directed graph for longest-path / topological placement.
+# 用于最长路径 / 拓扑布局的最小有向图。
 # --------------------------------------------------------------------------- #
 
 class _DiGraph:
@@ -147,154 +148,9 @@ class _DiGraph:
         return order
 
 
-# --------------------------------------------------------------------------- #
-# Device-library loading.
-# --------------------------------------------------------------------------- #
-
-def load_device_catalog(devicelib_root: str) -> Dict[str, Dict[str, Any]]:
-    """Load every device YAML variant into ``{device_type: {name: body}}``."""
-    catalog: Dict[str, Dict[str, Any]] = {}
-    import glob
-    import os
-
-    for path in sorted(glob.glob(os.path.join(devicelib_root, "*", "*.yml"))):
-        with open(path, "r", encoding="utf-8") as handle:
-            data = yaml.safe_load(handle) or {}
-        for device_type, variants in data.items():
-            bucket = catalog.setdefault(str(device_type), {})
-            for name, body in variants.items():
-                if isinstance(body, dict):
-                    bucket[str(name)] = body
-    return catalog
-
 
 # --------------------------------------------------------------------------- #
-# Sub-architecture assembly (arch params + core/node netlists + device choices).
-# --------------------------------------------------------------------------- #
-
-def _load_yaml_versioned(path: str, version: str = "v1") -> Dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as handle:
-        data = yaml.safe_load(handle) or {}
-    name = next(iter(data))
-    versions = data[name]
-    if version not in versions:
-        raise ValueError(f"Version {version!r} not found in {path}")
-    body = versions[version]
-    body.setdefault("name", name)
-    return body
-
-
-def build_sub_arch(
-    hardware: Dict[str, Any],
-    simphony_root: str,
-    device_catalog: Dict[str, Dict[str, Any]],
-) -> Dict[str, Any]:
-    """Merge a photonic ``hardware`` dict with SimPhony's core/node netlists."""
-    # SimPhony's CoreLib/NodeLib move the version-level ``devices`` table into
-    # the ``core`` / ``node`` sub-dict before simulation, so we mirror that here.
-    dptc_body = _load_yaml_versioned(f"{simphony_root}/configs/design/cores/dptc.yml", "v1")
-    dode_body = _load_yaml_versioned(f"{simphony_root}/configs/design/nodes/dode.yml", "v1")
-    core_cfg = dict(dptc_body["core"])
-    core_cfg["devices"] = dict(dptc_body["devices"])
-    core_cfg.setdefault("name", dptc_body["name"])
-    core_cfg.setdefault("version", "v1")
-    node_cfg = dict(dode_body["node"])
-    node_cfg["devices"] = dict(dode_body["devices"])
-    node_cfg.setdefault("name", dode_body["name"])
-    node_cfg.setdefault("version", "v1")
-
-    arch = hardware.get("arch", {})
-    system = arch.get("system", {})
-    core = arch.get("optical_core", {})
-    topology = arch.get("topology", {})
-    precision = core.get("precision", {})
-    # Start from the LT sub-arch memory defaults (which carry the CACTI
-    # ``config_file_name`` / ``output_file_name`` the real workflow needs) and
-    # overlay the searched cache / bandwidth values on top.
-    lt_body = _load_yaml_versioned(
-        f"{simphony_root}/configs/design/sub_architectures/LT.yml", "v1"
-    )
-    memory = dict(lt_body.get("memory", {}) or {})
-    for level, cfg in (arch.get("memory") or {}).items():
-        if isinstance(cfg, dict):
-            memory.setdefault(level, {}).update(cfg)
-
-    core_devices = dict(hardware.get("devices", {}).get("core", {}))
-    node_devices = dict(hardware.get("devices", {}).get("node", {}))
-
-    # Apply device-choice overrides to the netlist device tables.
-    for device_type, device_name in core_devices.items():
-        if device_type in core_cfg.get("devices", {}):
-            core_cfg["devices"][device_type] = [device_name]
-    for device_type, device_name in node_devices.items():
-        if device_type in node_cfg.get("devices", {}):
-            node_cfg["devices"][device_type] = [device_name]
-
-    # Instance-level device-type switches (searchable "instance choices").
-    # ``laser_source`` toggles the laser instance i4 between on-chip and
-    # off-chip sources; ``splitter_kind`` toggles the fan-out splitter i6
-    # between the waveguide laser-splitter and a 1x10 MMI.  The instance id,
-    # scaling rule and net position stay identical, so the swap is structural.
-    # The real ONNArchSimulator area workflow special-cases device names
-    # containing "mmi" via ``netlist.ports_num`` (cal_MMI_area), so the mmi
-    # case must also populate that dict.
-    netlist = core_cfg.setdefault("netlist", {})
-    instances = netlist.setdefault("instances", {})
-    laser_source = str(core_devices.get("laser_source", "on_chip"))
-    splitter_kind = str(core_devices.get("splitter_kind", "laser_splitter"))
-    i4 = instances.get("i4")
-    if i4 and i4[0] in ("on_chip_laser", "off_chip_laser"):
-        instances["i4"] = [
-            "off_chip_laser" if laser_source == "off_chip" else "on_chip_laser",
-            0,
-        ]
-    i6 = instances.get("i6")
-    if i6 and i6[0] in ("laser_splitter", "mmi"):
-        instances["i6"] = ["mmi" if splitter_kind == "mmi" else "laser_splitter", 0]
-    if splitter_kind == "mmi":
-        ports = netlist.get("ports_num")
-        if not isinstance(ports, dict):
-            ports = {}
-            netlist["ports_num"] = ports
-        ports["i6"] = 10  # matches Customized_1x10_MMI's cfgs.ports_num
-
-    core_cfg["height"] = int(core.get("height", core_cfg.get("height", 12)))
-    core_cfg["width"] = int(core.get("width", core_cfg.get("width", 12)))
-    core_cfg["num_wavelength"] = int(
-        core.get("num_wavelength", core_cfg.get("num_wavelength", 12))
-    )
-    core_cfg["work_freq"] = float(core.get("work_freq", core_cfg.get("work_freq", 5)))
-    core_cfg["precision"] = {
-        "in_bit": int(precision.get("in_bit", 4)),
-        "w_bit": int(precision.get("w_bit", 4)),
-        "out_bit": int(precision.get("out_bit", 4)),
-    }
-    core_cfg["node"] = node_cfg
-
-    # L4 topology / circuit overrides (sharing policy, temporal accumulation,
-    # laser power distribution) map onto the core netlist as controlled values.
-    apply_topology(
-        core_cfg.setdefault("netlist", {}),
-        str(topology.get("sharing_policy", DEFAULT_SHARING_POLICY)),
-        str(topology.get("temporal_accum", DEFAULT_TEMPORAL_ACCUM)),
-        str(topology.get("laser_distribution", DEFAULT_LASER_DISTRIBUTION)),
-    )
-
-    sub_arch = {
-        "name": lt_body["name"],
-        "version": "v1",
-        "tiles": int(system.get("tiles", 4)),
-        "cores_per_tile": int(system.get("cores_per_tile", 2)),
-        "dataflow": str(system.get("dataflow", "output_stationary")),
-        "op_type": str(system.get("op_type", "MVM")),
-        "core": core_cfg,
-        "memory": memory,
-    }
-    return sub_arch
-
-
-# --------------------------------------------------------------------------- #
-# Device counting (mirrors load_device_and_count).
+# 器件计数（对应 load_device_and_count）。
 # --------------------------------------------------------------------------- #
 
 def _chip_type(instance: str, chip_mapping: Optional[Dict[str, Any]]) -> str:
@@ -310,7 +166,7 @@ def load_required_devices(
     sub_arch: Dict[str, Any],
     device_catalog: Dict[str, Dict[str, Any]],
 ) -> Tuple[Dict[str, Dict[str, Any]], List[str], List[str], Dict[str, int]]:
-    """Return (components, operand_1, operand_2, temporal_shared)."""
+    """返回 (components, operand_1, operand_2, temporal_shared)。"""
     tiles = sub_arch["tiles"]
     cores = sub_arch["cores_per_tile"]
     core_cfg = sub_arch["core"]
@@ -409,7 +265,7 @@ def _device_count(
 
 
 # --------------------------------------------------------------------------- #
-# Power initialisation (mirrors initalize_all_devices_power).
+# 功耗初始化（对应 initalize_all_devices_power）。
 # --------------------------------------------------------------------------- #
 
 def _cal_dac_power(cfgs: Dict[str, Any], in_bit: int, freq: float) -> float:
@@ -427,7 +283,7 @@ def _cal_adc_power(cfgs: Dict[str, Any], out_bit: int, freq: float) -> float:
     ratio = freq / float(cfgs.get("sample_rate", 1))
     if cfgs.get("type") == "flash":
         return base * ratio * ((2 ** out_bit - 1) / (2 ** prec - 1))
-    # sar (default)
+    # sar（默认）
     return base * ratio * (out_bit / prec)
 
 
@@ -448,6 +304,76 @@ def _cal_laser_power(
     power = 10 ** (p_laser_dbm / 10) / wall_plug_eff * 2 ** in_bit
     extinction_scale = 1.0 / (1.0 - 0.1 ** (extinction_ratio / 10)) if extinction_ratio > 0 else 1.0
     return power * extinction_scale
+
+
+def _link_budget(
+    sub_arch: Dict[str, Any],
+    catalog: Dict[str, Dict[str, Any]],
+    core_il_db: float,
+) -> Dict[str, Any]:
+    """论文 eq.(1) 的链路预算：临界路径 IL → 最低激光功率 + 光信噪比（SNR）。
+
+    论文（arXiv:2411.13715）eq.(1)：
+        P_laser = 10^((S+IL)/10) · 2^bin / (η_WPE · (1 − 0.1^(ER/10)))
+    其中 S 为 PD 灵敏度、IL 为关键路径插损、ER 为调制消光比、η_WPE 为激光器
+    墙插效率。SNR 由 ``2^bin`` 幅度余量隐含：为分辨 bin 位输入电平，接收光功率
+    须高出灵敏度 2^bin 倍，即 SNR_db = 10·log10(2^bin) ≈ 3.01·bin（功率域）。
+    """
+    core = sub_arch["core"]
+    sensitivity = -27.0
+    er = 0.0
+    wpe = 1.0
+
+    def _scan(cfg: Dict[str, Any]) -> None:
+        nonlocal sensitivity, er, wpe
+        netlist = cfg.get("netlist", {}) or {}
+        instances = netlist.get("instances", {}) or {}
+        devices = cfg.get("devices", {}) or {}
+        for choice in instances.values():
+            if not (isinstance(choice, (list, tuple)) and choice):
+                continue
+            dtype, idx = str(choice[0]), int(choice[1])
+            variants = devices.get(dtype) or []
+            if idx >= len(variants):
+                continue
+            cfgs = (catalog.get(dtype, {}).get(variants[idx], {}) or {}).get("cfgs", {}) or {}
+            if dtype == "photodetector":
+                sensitivity = max(sensitivity, float(cfgs.get("sensitivity", -27) or -27))
+            elif dtype == "mzm":
+                er = max(er, float(cfgs.get("extinction_ratio", 0) or 0))
+            elif "laser" in dtype:
+                wpe = float(cfgs.get("wall_plug_eff", 1.0) or 1.0)
+
+    _scan(core)
+    node = core.get("node")
+    if isinstance(node, dict):
+        _scan(node)
+
+    netlist = core.get("netlist", {}) or {}
+    tiles = sub_arch["tiles"]
+    cores = sub_arch["cores_per_tile"]
+    height = core.get("height")
+    width = core.get("width")
+    wavelength = core.get("num_wavelength", 1)
+    in_bit = int((core.get("precision") or {}).get("in_bit", 8) or 8)
+
+    distribution_factor = evaluate_factors(
+        netlist.get("laser_power_distribution", 1), tiles, cores, height, width, wavelength
+    )
+    p_laser_dbm = core_il_db + sensitivity + 10 * math.log10(max(distribution_factor, 1))
+    extinction_scale = 1.0 / (1.0 - 0.1 ** (er / 10)) if er > 0 else 1.0
+    laser_power_mw = 10 ** (p_laser_dbm / 10) / wpe * 2 ** in_bit * extinction_scale
+
+    return {
+        "critical_path_il_db": round(float(core_il_db), 4),
+        "receiver_sensitivity_dbm": round(float(sensitivity), 4),
+        "input_bit": in_bit,
+        "extinction_ratio_db": round(float(er), 4),
+        "wall_plug_efficiency": round(float(wpe), 4),
+        "required_laser_power_dbm": round(float(p_laser_dbm), 4),
+        "required_laser_power_mw": round(float(laser_power_mw), 6),
+        "snr_db": round(float(10 * math.log10(2 ** in_bit)), 4),
+    }
 
 
 def initialize_device_power(
@@ -472,6 +398,8 @@ def initialize_device_power(
     extinction_ratio = 0.0
     sensitivity = -27.0
     laser_cfgs: Dict[str, Any] = {}
+    # 网格权重移相器静态保持；DODE 微调器动态调谐。
+    ps_static = bool((core_cfg.get("node", {}) or {}).get("weight_stationary_phase_shifter", False))
 
     for device, device_cfg in components.items():
         if device == "node":
@@ -488,8 +416,14 @@ def initialize_device_power(
             er = cfgs.get("extinction_ratio") or 0
             extinction_ratio = max(extinction_ratio, float(er))
         elif "phase_shifter" in type_:
-            device_cfg["dynamic_power"] = float(cfgs.get("P_pi", 0) or 0)
-            device_cfg["tuning_cycles"] = float(cfgs.get("response_time", 0) or 0) * freq
+            p_pi = float(cfgs.get("P_pi", 0) or 0)
+            if ps_static:
+                # 保持权重的移相器：持续静态耗散。
+                device_cfg["static_power"] = p_pi
+                device_cfg["dynamic_power"] = 0.0
+            else:
+                device_cfg["dynamic_power"] = p_pi
+                device_cfg["tuning_cycles"] = float(cfgs.get("response_time", 0) or 0) * freq
         elif "photodetector" in type_:
             sensitivity = max(sensitivity, float(cfgs.get("sensitivity", -27) or -27))
         elif "on_chip_laser" in type_ or "off_chip_laser" in device:
@@ -524,7 +458,7 @@ def initialize_device_power(
 
 
 # --------------------------------------------------------------------------- #
-# Energy (mirrors reuse_determinator + energy_calculator).
+# 能耗（对应 reuse_determinator + energy_calculator）。
 # --------------------------------------------------------------------------- #
 
 def _reuse_determinator(
@@ -564,15 +498,19 @@ def energy_calculator(
     cycles: Dict[str, Tuple[int, ...]],
     insertion_loss: float,
 ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, float], Dict[str, float]]:
-    """Per-device energy plus a **native** per-layer energy breakdown.
+    """逐器件能耗，外加一个 **原生的** 逐层能耗分解。
 
-    The accumulation loop already visits every layer, so the per-layer totals are
-    captured here instead of being thrown away.  That is what turns the agents'
-    per-layer energy ranking from a cycles-proportional *estimate* into a real
-    simulated quantity.
+    累积循环已遍历每一层，因此逐层合计在此处直接采集。这使智能体按层能耗排序从按循环
+    数比例估算的 *估计值* 变成真实的仿真量。
     """
     dataflow = sub_arch.get("dataflow", "weight_stationary")
     freq = sub_arch["core"]["work_freq"]
+    # 论文 Tab. I 的 I 因子：range-restricted PTC 需多次前向才能得到全值域输出
+    # （MRR=2、PCM=4、MZI/butterfly/TeMPO=1）。I 同时放大计算周期与能耗。
+    range_forwards = int((sub_arch.get("core", {}) or {}).get("range_forwards") or 1)
+    core_cfg = sub_arch.get("core", {}) or {}
+    reconfig_time_ns = float(core_cfg.get("reconfig_time_ns", 0.0) or 0.0)
+    weight_count = int(core_cfg.get("weight_count", 0) or 0)
 
     devices = initialize_device_power(sub_arch, components, insertion_loss)
 
@@ -583,19 +521,30 @@ def energy_calculator(
     max_op2_cycles = max(devices[d]["tuning_cycles"] for d in operand_2)
     max_cycles = max(max_op1_cycles, max_op2_cycles)
 
-    latency = {"total_tuning_latency": 0.0, "total_static_latency": 0.0}
+    latency = {
+        "total_tuning_latency": 0.0,
+        "total_static_latency": 0.0,
+        "total_reconfig_latency": 0.0,
+    }
     per_layer_energy: Dict[str, float] = {}
     operand_1_set = set(operand_1)
     operand_2_set = set(operand_2)
 
     for layer_name, cycle in cycles.items():
         iter_n, iter_d, iter_m, _, _, _, forward_w, forward_x = cycle
-        switching_cycles = iter_n * iter_d * iter_m
+        switching_cycles = iter_n * iter_d * iter_m * range_forwards
         layer_energy = 0.0
         op2_duty, op1_duty, max_cycle = _reuse_determinator(
             dataflow, iter_m, iter_n, iter_d, max_op1_cycles, max_op2_cycles, max_cycles,
             forward_w, forward_x,
         )
+        max_cycle *= range_forwards
+        # 论文重配置延时惩罚：weight-stationary 下换权重受器件重编程速度瓶颈
+        # （TO=10µs、PCM=100ns）；cycle penalty = 权重数 × reconfig_time_ns × freq，
+        # 且按 I 因子放大（τ_tot = τ_load + τ_write + I(τ_comp + τ_reconfig)）。
+        if dataflow == "weight_stationary" and reconfig_time_ns > 0.0:
+            reconfig_cycles = int(round(weight_count * reconfig_time_ns * freq * range_forwards))
+            latency["total_reconfig_latency"] += reconfig_cycles
         for device, device_cfg in devices.items():
             dynamic = device_cfg["dynamic_energy"] * switching_cycles * device_cfg["count"]
             duration = temporal_shared.get(device)
@@ -618,6 +567,7 @@ def energy_calculator(
 
     latency["total_tuning_latency"] = latency["total_tuning_latency"] / freq * 1e-9
     latency["total_static_latency"] = latency["total_static_latency"] / freq * 1e-9
+    latency["total_reconfig_latency"] = latency["total_reconfig_latency"] / freq * 1e-9
     return devices, latency, per_layer_energy
 
 
@@ -633,14 +583,14 @@ def chip_energy_calculator(devices: Dict[str, Dict[str, Any]]) -> Dict[str, Any]
 
 
 # --------------------------------------------------------------------------- #
-# Area (mirrors initalize_all_devices_area + area_calculator + bounding box).
+# 面积（对应 initalize_all_devices_area + area_calculator + 包围盒）。
 # --------------------------------------------------------------------------- #
 
 def _topo_levels_sorted(
     graph: _DiGraph,
     dims_by_instance: Dict[str, Dict[str, float]],
 ) -> List[str]:
-    """Topological order grouped by level, each level sorted by device length."""
+    """按层级分组的拓扑顺序，每层按器件长度排序。"""
     in_degree = {node: graph.in_degree(node) for node in graph.nodes()}
     queue = [node for node in graph.nodes() if in_degree[node] == 0]
     order: List[str] = []
@@ -665,7 +615,7 @@ def _node_bounding_box(
     height: int,
     width: int,
 ) -> Tuple[float, float, float, int]:
-    """Layout-aware node bounding box (mirrors default_bounding_box_estimator)."""
+    """布局感知的节点包围盒（对应 default_bounding_box_estimator）。"""
     spacing_flag = node_cfg.get("device_spacing_flag", False)
     node_spacing_flag = node_cfg.get("node_spacing_flag", False)
     device_spacing = node_cfg.get("device_spacing") or [5, 5, 5, 5]
@@ -741,9 +691,8 @@ def area_calculator(
         cfg["width"] = float(cfgs.get("width", math.sqrt(cfg.get("area", 0) or 0)) or 0)
         cfg["length"] = float(cfgs.get("length", math.sqrt(cfg.get("area", 0) or 0)) or 0)
         if "mmi" in type_:
-            # Mirror onnarchsim's cal_MMI_area: area scales with the instance's
-            # port count (from netlist.ports_num, falling back to the device's
-            # own ports_num).
+            # 对应 onnarchsim 的 cal_MMI_area：面积随实例端口数缩放（取自
+            # netlist.ports_num，缺失时回退到器件自身的 ports_num）。
             ports = netlist_ports.get(instance) or cfgs.get("ports_num", 10)
             port = evaluate_factors(ports, tiles, cores, height, width, 1)
             port_scaling = port / float(cfgs.get("ports_num", 10))
@@ -780,7 +729,7 @@ def chip_area_calculator(devices: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
-# Insertion loss (mirrors architecture_insertion_loss).
+# 插入损耗（对应 architecture_insertion_loss）。
 # --------------------------------------------------------------------------- #
 
 def _insertion_loss_of(device_choice: Tuple[str, int], devices: Dict[str, Any], catalog: Dict[str, Dict[str, Any]]) -> float:
@@ -927,23 +876,25 @@ def _path_detail(
     catalog: Dict[str, Dict[str, Any]],
     instance_weights: Dict[str, float],
 ) -> List[Dict[str, Any]]:
-    """Expand an insertion-loss path into per-component detail.
+    """把插入损耗路径展开为逐器件的明细。
 
-    Each element names the physical component, its library variant, and its
-    individual insertion-loss contribution (dB).  This is the evidence the
-    optical-level agent needs to localise loss along the light path rather than
-    seeing only the aggregate path total.
+    每个元素给出物理器件名、其库变体以及各自的插入损耗贡献（dB）。这是光学层智能体
+    沿光路定位损耗所需的证据，而非只看到整条路径的总损耗。
     """
     detail: List[Dict[str, Any]] = []
     for node in path:
-        instance_id = node.split("_")[0] if "_" in node else node
+        # 只去掉末尾的复制索引（"i0_3" -> "i0"）。网格实例名为 "i_mzi"/"i_pd"/...，
+        # 若用 split("_")[0] 会被截断成 "i" 并静默丢失整个分解。
+        instance_id = node
+        head, sep, tail = str(node).rpartition("_")
+        if sep and head and tail.isdigit():
+            instance_id = head
         choice = instances.get(instance_id)
         if choice is None:
             continue
         device_type, index = choice[0], int(choice[1])
         if device_type == "node":
-            # The core netlist folds the whole node sub-circuit into a single
-            # pseudo-component whose weight is the aggregate node loss.
+            # 核心网表把整个节点子电路折叠为一个伪器件，其权重为节点总损耗。
             device_name = "node_subcircuit"
         else:
             variants = devices.get(device_type) or []
@@ -959,38 +910,18 @@ def _path_detail(
 
 
 # --------------------------------------------------------------------------- #
-# Synthetic workload + analytic memory.
+# 解析内存。
 # --------------------------------------------------------------------------- #
-
-def synthetic_workload() -> Dict[str, Tuple[int, int, int, int, int, int, int, int]]:
-    """The legacy fixed three-layer workload (kept for backward compatibility).
-
-    These tuples have the shape ``(iter_N, iter_D, iter_M, N, D, M,
-    forward_factor_w, forward_factor_x)`` produced by ``simu_partition_cycles``.
-
-    Real models are now selectable through
-    :func:`photon_tuner.core.workload.build_workload` (see
-    ``configs/workloads.json``); this baseline is preserved unchanged so the
-    original reference numbers still hold.
-    """
-    return synthetic_cycles()
-
-
-def _synthetic_layer_sizes() -> Dict[str, Dict[str, Any]]:
-    """Approximate layer I/O sizes (bytes) for the analytic memory model."""
-    return synthetic_layer_sizes()
-
 
 def memory_cost(
     sub_arch: Dict[str, Any],
     cycles: Dict[str, Tuple[int, ...]],
     layer_sizes: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Tuple[Dict[str, Dict[str, float]], float, Dict[str, Any]]:
-    """Analytic memory latency / energy (no CACTI binary required).
+    """解析的内存时延 / 能耗（无需 CACTI 二进制）。
 
-    Uses the HBM read/write energy and bandwidth plus the GLB/RF cache sizes
-    from the architecture config; it mirrors the *shape* of SimPhony's memory
-    hierarchy reports while staying fully offline.
+    使用架构配置中的 HBM 读/写能耗与带宽以及 GLB/RF 缓存大小；在完全离线的前提下
+    复现 SimPhony 内存层次报告的结构。
     """
     memory = sub_arch.get("memory", {})
     hbm = memory.get("HBM", {})
@@ -998,7 +929,7 @@ def memory_cost(
     write_energy = float(hbm.get("write_energy", 62.4) or 0)  # pJ/Byte
     bandwidth = float(hbm.get("bandwidth", 1024) or 1)  # GB/s
 
-    layer_sizes = layer_sizes if layer_sizes is not None else _synthetic_layer_sizes()
+    layer_sizes = layer_sizes if layer_sizes is not None else {}
     latency: Dict[str, Dict[str, float]] = {}
     energy: Dict[str, float] = {}
     for layer, cycle in cycles.items():
@@ -1006,7 +937,7 @@ def memory_cost(
         input_bytes = size.get("input_size", [0])[0]
         output_bytes = size.get("output_size", [0])[0]
         weight_bytes = size.get("weight_size", [0])[0]
-        # Re-read weight every iter_N iterations (rough model).
+        # 每 iter_N 次迭代重新读取权重（粗略模型）。
         iter_n = cycle[0]
         total_read = input_bytes + weight_bytes * iter_n
         total_write = output_bytes
@@ -1023,23 +954,30 @@ def memory_cost(
 
 
 # --------------------------------------------------------------------------- #
-# Top-level evaluation.
+# 顶层求值。
 # --------------------------------------------------------------------------- #
 
 def workload_arch_context(sub_arch: Dict[str, Any]) -> Dict[str, Any]:
-    """Architecture inputs that the workload cycle arithmetic depends on.
+    """工作负载循环算术所依赖的架构输入。
 
-    ``num_wavelength`` changes ``iter_D``; ``miniblock`` and ``dim_map`` change
-    how many iterations each matrix dimension is split into.  Reading them from
-    the evaluated sub-architecture is what makes a real workload's per-layer
-    profile *respond to hardware edits* instead of staying constant.
+    ``num_wavelength`` 改变 ``iter_D``；``miniblock`` 与 ``dim_map`` 决定每个矩阵维度
+    被拆分的迭代次数。从被评估的子架构读取这些值，使真实工作负载的逐层曲线会
+    *随硬件编辑而变化*，而非保持不变。
+
+    ``miniblock`` 采用 ``[tiles, cores_per_tile, matrix_height, matrix_width]``，
+    与真实 ONNArchSimulator 的 ``arch_blocks`` 一致：并行权重阵列的 ``matrix_height=1``
+    （单输出向量）会放大 ``iter_N``，从而让吞吐归一化区分向量与矩阵阵列。
     """
     core = sub_arch.get("core") or {}
+    tiles = int(sub_arch.get("tiles", 1) or 1)
+    cores = int(sub_arch.get("cores_per_tile", 1) or 1)
+    matrix_h = int(core.get("matrix_height") or core.get("height", 1) or 1)
+    matrix_w = int(core.get("matrix_width") or core.get("width", 1) or 1)
     return {
         "num_wavelength": int(core.get("num_wavelength", 1) or 1),
         "dataflow": sub_arch.get("dataflow"),
         "op_type": sub_arch.get("op_type"),
-        "miniblock": list(DEFAULT_MINIBLOCK),
+        "miniblock": [tiles, cores, matrix_h, matrix_w],
     }
 
 
@@ -1050,19 +988,33 @@ def evaluate(
     workload: Optional[Dict[str, Any]] = None,
     workload_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Evaluate one photonic design point and return the fine-grained report.
+    """求值一个光子设计点并返回细粒度报告。
 
     Args:
-        workload: A prebuilt workload dict (see
-            :func:`photon_tuner.core.workload.build_workload`).  When omitted,
-            ``workload_name`` selects one from ``configs/workloads.json``.
-        workload_name: Registered workload name; defaults to the config's
-            ``default`` entry (``synthetic``), preserving legacy behaviour.
+        workload: 预构建的工作负载字典（见
+            :func:`photon_tuner.core.workload.build_workload`）。缺省时由
+            ``workload_name`` 从 ``configs/workloads.json`` 中选择。
+        workload_name: 已注册的工作负载名；默认为 ``configs/workloads.json`` 的
+            ``default`` 项。
     """
     hardware = materialize_hardware(hardware)
     catalog = device_catalog or load_device_catalog(f"{simphony_root}/configs/devices")
-    sub_arch = build_sub_arch(hardware, simphony_root, catalog)
+    core_kind = str((hardware.get("arch", {}).get("topology", {}) or {}).get("core_kind", "dptc_crossbar"))
+    if core_kind.startswith("mzi_mesh_"):
+        sub_arch = build_mesh_sub_arch(hardware, simphony_root, catalog, core_kind)
+    elif core_kind in _WEIGHT_ARRAY_SPECS:
+        sub_arch = build_weight_array_sub_arch(hardware, simphony_root, catalog, core_kind)
+    elif core_kind == "dptc_crossbar":
+        sub_arch = build_sub_arch(hardware, simphony_root, catalog)
+    else:
+        raise ValueError(
+            f"unknown core_kind {core_kind!r}: no netlist builder and no evaluation path; "
+            f"refusing to silently fall back to the DPTC crossbar"
+        )
 
+    # 报告里的子架构键取实际拓扑名，而不是 YAML 的静态查表名（"LT"），
+    # 否则报告会自称仿真的是 crossbar 基线，即使实际结构是 MZI 网格。
+    arch_key = sub_arch_key(hardware)
     resolved_workload = workload or build_workload(
         name=workload_name,
         arch=workload_arch_context(sub_arch),
@@ -1083,8 +1035,8 @@ def evaluate(
     area_components, _, _, _ = load_required_devices(sub_arch, catalog)
     area_devices = area_calculator(sub_arch, area_components, catalog)
     chip_area = chip_area_calculator(area_devices)
-    # Mirror SimPhony's simu_area total: core-level devices plus the layout-aware
-    # node bounding box (node-level device areas are already folded into the box).
+    # 对应 SimPhony 的 simu_area 总面积：核心级器件加上布局感知的节点包围盒
+    # （节点级器件面积已并入盒内）。
     total_area = sum(v["total_area"] for key, v in area_devices.items() if "node" not in key)
     total_area += area_devices["node"]["total_area"]
 
@@ -1094,8 +1046,16 @@ def evaluate(
     total_latency = (
         computation_latency["total_tuning_latency"]
         + computation_latency["total_static_latency"]
+        + computation_latency.get("total_reconfig_latency", 0.0)
         + total_memory_latency
     )
+
+    # 吞吐归一化指标（跨范式 Pareto 效率轴）：能耗→每 MAC、面积→每单位吞吐 MAC/s。
+    # 并行权重阵列是单输出向量（器件少但吞吐低），按吞吐归一后与矩阵阵列可比。
+    macs = total_macs(cycles)
+    throughput = macs / total_latency if total_latency > 0 else 0.0
+    pj_per_mac = total_energy / macs if macs else total_energy
+    area_per_throughput = total_area / throughput if throughput > 0 else total_area
 
     report = {
         "metadata": {"simulator": "SimPhony-analytic"},
@@ -1103,35 +1063,40 @@ def evaluate(
         "workload": {
             "name": resolved_workload.get("name"),
             "kind": resolved_workload.get("kind"),
-            "partition_cycles": {"LT": cycles},
+            "partition_cycles": {arch_key: cycles},
             "layer_sizes": layer_sizes,
         },
-        "insertion_loss": {"LT": il},
+        "insertion_loss": {arch_key: il},
+        "link_budget": {arch_key: _link_budget(sub_arch, catalog, il["core_insertion_loss"])},
         "energy": {
-            "by_device": {"LT": energy_devices},
-            "by_chip_type": {"LT": chip_energy},
-            "by_layer": {"LT": per_layer_energy},
-            "total": {"LT": total_energy},
+            "by_device": {arch_key: energy_devices},
+            "by_chip_type": {arch_key: chip_energy},
+            "by_layer": {arch_key: per_layer_energy},
+            "total": {arch_key: total_energy},
         },
         "area": {
-            "by_device": {"LT": area_devices},
-            "by_chip_type": {"LT": chip_area},
-            "total": {"LT": total_area},
+            "by_device": {arch_key: area_devices},
+            "by_chip_type": {arch_key: chip_area},
+            "total": {arch_key: total_area},
         },
         "latency": {
-            "computation": {"LT": computation_latency},
-            "memory": {"LT": total_memory_latency},
-            "total": {"LT": total_latency},
+            "computation": {arch_key: computation_latency},
+            "memory": {arch_key: total_memory_latency},
+            "total": {arch_key: total_latency},
         },
         "memory": {
-            "latency": {"LT": memory_latency},
-            "energy": {"LT": memory_energy},
+            "latency": {arch_key: memory_latency},
+            "energy": {arch_key: memory_energy},
             "spec": memory_spec,
         },
         "metrics": {
             "energy_pj": total_energy,
             "area_um2": total_area,
             "latency_s": total_latency,
+            "total_macs": macs,
+            "throughput_mac_per_s": throughput,
+            "pJ_per_mac": pj_per_mac,
+            "area_um2_per_mac_per_s": area_per_throughput,
         },
     }
     return report

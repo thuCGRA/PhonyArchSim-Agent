@@ -1,4 +1,4 @@
-"""Validate the offline analytic mirror against SimPhony reference values."""
+"""对照 SimPhony 参考值校验离线 analytic 镜像。"""
 
 import sys
 import unittest
@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from tests._subarch import sub_arch
 from photon_tuner.core.search_space import default_hardware
 from photon_tuner.simulators.analytic import (
     build_sub_arch,
@@ -33,11 +34,11 @@ class TestAnalyticEvaluator(unittest.TestCase):
         self.assertGreater(metrics["area_um2"], 0)
         self.assertGreater(metrics["latency_s"], 0)
 
-    def test_energy_total_matches_simphony_lt(self):
+    def test_energy_total_matches_reference(self):
+        # 默认工作负载为 vit_tiny；此处钉住解析镜像的 LT 能量作为回归锚点。
         report = evaluate(self.hardware, simphony_root=str(self.root))
-        total = report["energy"]["total"]["LT"]
-        # SimPhony LT energy is ~1.7e6 pJ with the current laser distribution.
-        self.assertAlmostEqual(float(total), 1699934.16, delta=2.0)
+        total = sub_arch(report["energy"]["total"])
+        self.assertAlmostEqual(float(total), 115562731.63852626, delta=2.0)
 
     def test_insertion_loss_matches_reference(self):
         il = insertion_loss(self.sub_arch, self.catalog)
@@ -53,7 +54,7 @@ class TestAnalyticEvaluator(unittest.TestCase):
             key = (_instance_index(device), device.split("-")[-1])
             by_type[key] = by_type.get(key, 0) + cfg["count"]
 
-        # Reference counts for the LT core devices.
+        # LT 核心器件的参考数量。
         self.assertEqual(by_type.get(("i0", "LT_MZM")), 1152)
         self.assertEqual(by_type.get(("i1", "DAC_2")), 1152)
         self.assertEqual(by_type.get(("i2", "ADC_SAR_1")), 576)
@@ -61,7 +62,7 @@ class TestAnalyticEvaluator(unittest.TestCase):
 
     def test_node_bounding_box_matches_reference(self):
         report = evaluate(self.hardware, simphony_root=str(self.root))
-        node = report["area"]["by_device"]["LT"]["node"]
+        node = sub_arch(report["area"]["by_device"])["node"]
         self.assertAlmostEqual(node["area"], 11688.0, delta=1e-6)
         self.assertAlmostEqual(node["width"], 120.0, delta=1e-6)
         self.assertAlmostEqual(node["length"], 97.4, delta=1e-6)
@@ -80,7 +81,7 @@ class TestAnalyticEvaluator(unittest.TestCase):
         hw["arch"]["topology"]["sharing_policy"] = "no_sharing"
         sub = build_sub_arch(hw, str(self.root), self.catalog)
         rules = sub["core"]["netlist"]["scaling_rules"]
-        self.assertEqual(rules["i2"], "H*W*R*C")  # ADC private per node
+        self.assertEqual(rules["i2"], "H*W*R*C")  # 每个节点私有的 ADC
         self.assertEqual(rules["i8"], "H*W*R*C")
 
     def test_temporal_accum_duration(self):
@@ -101,7 +102,7 @@ class TestAnalyticEvaluator(unittest.TestCase):
         self.assertEqual(sub["memory"]["GLB2"]["config_file_name"], "GLB2.cfg")
         self.assertEqual(sub["memory"]["RF"]["config_file_name"], "RF.cfg")
 
-    # -- Instance-level device-type switches (mmi / off_chip_laser) --------- #
+    # -- 实例级器件类型切换（mmi / off_chip_laser） --------- #
 
     def test_instance_choice_switches_netlist_types(self):
         hw = default_hardware()
@@ -112,7 +113,7 @@ class TestAnalyticEvaluator(unittest.TestCase):
         self.assertEqual(inst["i4"][0], "off_chip_laser")
         self.assertEqual(inst["i6"][0], "mmi")
         self.assertEqual(sub["core"]["netlist"]["ports_num"]["i6"], 10)
-        # Switching back restores the baseline netlist.
+        # 切换回来恢复基线网表。
         back = build_sub_arch(default_hardware(), str(self.root), self.catalog)
         self.assertEqual(back["core"]["netlist"]["instances"]["i4"][0], "on_chip_laser")
         self.assertEqual(back["core"]["netlist"]["instances"]["i6"][0], "laser_splitter")
@@ -124,8 +125,8 @@ class TestAnalyticEvaluator(unittest.TestCase):
         mmi = evaluate(hw, simphony_root=str(self.root))
         self.assertGreater(mmi["metrics"]["area_um2"], base["metrics"]["area_um2"])
         self.assertGreater(
-            mmi["insertion_loss"]["LT"]["core_insertion_loss"],
-            base["insertion_loss"]["LT"]["core_insertion_loss"],
+            sub_arch(mmi["insertion_loss"])["core_insertion_loss"],
+            sub_arch(base["insertion_loss"])["core_insertion_loss"],
         )
 
     def test_off_chip_laser_changes_energy(self):
@@ -137,7 +138,7 @@ class TestAnalyticEvaluator(unittest.TestCase):
 
 
 def _instance_index(device: str) -> str:
-    # Device names look like: core_mzm_0_i0-LT_MZM
+    # 设备名形如：core_mzm_0_i0-LT_MZM
     tail = device.split("-")[0]
     return tail.rsplit("_", 1)[-1]
 

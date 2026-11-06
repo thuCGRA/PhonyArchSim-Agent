@@ -1,15 +1,34 @@
-# Photonic DSE framework + analytic mirror (minimal).
+# photonic-tuner — native LangChain + LangGraph runtime dependencies.
 #
-# This is everything `python3 main.py ...` actually needs in the default
-# `--mode auto` / `--mode analytic` path.  The framework itself is pure stdlib
-# (the LLM client talks to the API with `urllib`, no `openai` SDK); the only
-# third-party package is PyYAML, used to parse SimPhony's device/design YAML
-# configs under `simphony/configs/`.
+# Install into a Python >=3.11 venv, e.g.:
 #
-# On Debian/Ubuntu this is usually already satisfied by the system package:
-#     sudo apt install python3-yaml
+#     .tools/uv venv .venv-agent --python 3.14
+#     .tools/uv pip install --python .venv-agent/bin/python -r requirements.txt
 #
-# The real SimPhony (torch/torchonn) stack is NOT here — see
-# requirements-real.txt for `--mode real`.
+# The real SimPhony stack pins torch 1.12.1 / Python 3.10, so it cannot share
+# this interpreter.  It lives in a separate venv (`.venv-simulator`, see
+# scripts/env/requirements-real.txt) and is reached over an MCP stdio bridge
+# (photon_tuner/bridge/mcp/simphony_server.py), not imported in-process.
 
-PyYAML>=5.1
+langgraph>=0.4
+langgraph-checkpoint-sqlite>=2.0
+langchain>=0.3
+langchain-core>=0.3
+langchain-openai>=1.0
+langchain-huggingface>=1.0
+langchain-mcp-adapters>=0.1
+tenacity>=8.0
+pyyaml>=5.1
+
+# Optional — pretrained semantic embeddings (photon_tuner/rag/embeddings.py).
+# ``langchain-huggingface`` is enough to import/align the HuggingFaceEmbeddings
+# type; actually loading a checkpoint also needs the heavyweight torch stack:
+#
+#     .tools/uv pip install --python .venv-agent/bin/python "sentence-transformers>=2.7"
+#
+# The default ``--embedding-model hashing`` offline path needs none of this.
+
+# Optional — HTTP serving (photon_tuner/server.py, `--serve`).  The CLI and the
+# whole tuning runtime work without it; install only when exposing POST /tune:
+#
+#     pip install fastapi uvicorn

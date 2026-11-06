@@ -1,1 +1,1 @@
-"""simulators package for the photonic DSE framework."""
+"""光子 DSE 框架的模拟器包。"""

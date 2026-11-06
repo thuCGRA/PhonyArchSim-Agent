@@ -1,14 +1,11 @@
-"""Search parameter -> sub-architecture location mapping.
+"""搜索参数到子架构位置的映射。
 
-``build_sub_arch`` (in :mod:`photon_tuner.simulators.analytic`) is the bridge
-that writes searched hardware values into the ``sub_arch`` dict that
-``ONNArchSimulator`` actually consumes.  That mapping is currently *implicit*
-(hand-written field assignments).  This module makes it explicit so the
-verification harness can read the injected value back out of the simulator and
-confirm the parameter truly landed.
+``build_sub_arch``（位于 :mod:`photon_tuner.simulators.netlist`）是将搜索得到
+的硬件值写入 ``ONNArchSimulator`` 实际消费的 ``sub_arch`` 字典的桥梁。本模块
+将该映射显式化，使验证框架能够从仿真器读回注入值并确认参数确实生效。
 
-Scalar parameters map to a plain key path; the three topology parameters are
-not scalars -- they reshape ``core.netlist`` via :mod:`photon_tuner.core.topology`.
+标量参数映射到普通键路径；三个拓扑参数不是标量——它们通过
+:mod:`photon_tuner.core.topology` 重塑 ``core.netlist``。
 """
 
 from __future__ import annotations
@@ -20,7 +17,7 @@ from photon_tuner.core.topology import (
     _TEMPORAL_DURATIONS,
 )
 
-# Scalar search parameters: param -> sub_arch key path.
+# 标量搜索参数：param -> sub_arch 键路径。
 SUB_ARCH_SCALAR_MAP: Dict[str, Tuple[str, ...]] = {
     "tiles": ("tiles",),
     "cores_per_tile": ("cores_per_tile",),
@@ -38,29 +35,28 @@ SUB_ARCH_SCALAR_MAP: Dict[str, Tuple[str, ...]] = {
     "rf_cache_size": ("memory", "RF", "cache_size"),
 }
 
-# Topology parameters (netlist-shaped, not scalar).
+# 拓扑参数（以网表结构组织，非标量）。
 TOPOLOGY_PARAMS: Tuple[str, ...] = (
     "sharing_policy",
     "temporal_accum",
     "laser_distribution",
 )
 
-# Recording map: param -> sub_arch path(s) for the evidence record.  Scalar
-# params map to a plain path; topology params map to the netlist field(s) they
-# reshape.
+# 记录映射：param -> 证据记录中的 sub_arch 路径。标量参数映射到普通路径；
+# 拓扑参数映射到它们所重塑的网表字段。
 SUB_ARCH_MAP: Dict[str, Any] = {
     **{p: list(path) for p, path in SUB_ARCH_SCALAR_MAP.items()},
     "laser_distribution": ["core", "netlist", "laser_power_distribution"],
     "temporal_accum": ["core", "netlist", "temporal_accum_factor", "duration"],
     "sharing_policy": ["core", "netlist", "scaling_rules", ["i2", "i8"]],
-    # Instance-level device-type switches: the switched value is the device
-    # type of the corresponding netlist instance (i4 laser / i6 splitter).
+    # 实例级器件类型切换：切换值是相应网表实例（i4 激光器 / i6 分束器）的
+    # 器件类型。
     "laser_source": ["core", "netlist", "instances", "i4"],
     "splitter_kind": ["core", "netlist", "instances", "i6"],
 }
 
-# Device choices land in ``core.devices`` / ``core.node.devices`` as a
-# one-element list ``[variant_name]``.
+# 器件选择以单元素列表 ``[variant_name]`` 形式落在 ``core.devices`` /
+# ``core.node.devices`` 中。
 DEVICE_READBACK_PATHS: Dict[str, Tuple[str, ...]] = {
     "core": ("core", "devices"),
     "node": ("core", "node", "devices"),
@@ -76,7 +72,7 @@ def _lookup(node: Any, path: Tuple[str, ...]) -> Any:
 
 
 def read_sub_arch_param(sub_arch: Dict[str, Any], param: str) -> Any:
-    """Return the value(s) ``build_sub_arch`` placed for ``param`` (or None)."""
+    """返回 ``build_sub_arch`` 为 ``param`` 写入的值（若无则返回 None）。"""
     if param in SUB_ARCH_SCALAR_MAP:
         return _lookup(sub_arch, SUB_ARCH_SCALAR_MAP[param])
     if param == "laser_source":
@@ -97,7 +93,7 @@ def read_sub_arch_param(sub_arch: Dict[str, Any], param: str) -> Any:
 
 
 def expected_sub_arch_value(param: str, value: Any) -> Any:
-    """The value(s) we expect to find for a parameter's candidate value."""
+    """参数候选值所期望找到的值。"""
     if param in SUB_ARCH_SCALAR_MAP:
         return value
     if param == "laser_source":
@@ -124,13 +120,19 @@ def _eq(a: Any, b: Any) -> bool:
 def confirm_injection(
     sub_arch: Dict[str, Any], param: str, value: Any
 ) -> Tuple[bool, Dict[str, Any]]:
-    """Return ``(confirmed, readback_summary)`` for one injected parameter."""
+    """返回一个已注入参数的 ``(confirmed, readback_summary)``。"""
     actual = read_sub_arch_param(sub_arch, param)
     expected = expected_sub_arch_value(param, value)
     if isinstance(expected, dict):
-        confirmed = isinstance(actual, dict) and all(
-            _eq(actual.get(k), v) for k, v in expected.items()
+        # sharing-policy 映射同时携带交叉开关实例名 (i2/i8) 和网格实例名
+        # (i_adc/i_tia) 下的 ADC/TIA 缩放规则；仅比较当前网表实际暴露的项。
+        relevant = {k: v for k, v in expected.items() if k in (actual or {})}
+        confirmed = (
+            isinstance(actual, dict)
+            and bool(relevant)
+            and all(_eq(actual.get(k), v) for k, v in relevant.items())
         )
+        expected = relevant or expected
     else:
         confirmed = _eq(actual, expected)
     return confirmed, {
@@ -141,7 +143,7 @@ def confirm_injection(
 
 
 def read_device_choice(sub_arch: Dict[str, Any], level: str, device_type: str) -> Any:
-    """Return the device-variant list injected for ``devices.<level>.<type>``."""
+    """返回为 ``devices.<level>.<type>`` 注入的器件变体列表。"""
     path = DEVICE_READBACK_PATHS.get(level)
     if path is None:
         return None
@@ -151,7 +153,7 @@ def read_device_choice(sub_arch: Dict[str, Any], level: str, device_type: str) -
 def confirm_device_injection(
     sub_arch: Dict[str, Any], level: str, device_type: str, device_name: Any
 ) -> Tuple[bool, Dict[str, Any]]:
-    """Return ``(confirmed, readback_summary)`` for one injected device choice."""
+    """返回一个已注入器件选择的 ``(confirmed, readback_summary)``。"""
     actual = read_device_choice(sub_arch, level, device_type)
     expected = [str(device_name)]
     confirmed = isinstance(actual, (list, tuple)) and bool(actual) and actual[0] == expected[0]

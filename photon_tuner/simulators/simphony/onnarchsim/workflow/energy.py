@@ -114,7 +114,11 @@ def cal_laser_power(
         + 10 * math.log10(distribution_factor)
     )
     laser_power = 10 ** (P_laser_dbm / 10) / wall_plug_efficiency * 2**in_bit
-    extinction_scale = 1 / (1 - 0.1 ** (modulation_extinction_ratio / 10))
+    # A mesh core has no MZM, so no modulation-extinction penalty applies
+    # (extinction_ratio stays 0); guard the degenerate 1/(1-1) division.
+    extinction_scale = 1.0
+    if modulation_extinction_ratio and modulation_extinction_ratio > 0:
+        extinction_scale = 1 / (1 - 0.1 ** (modulation_extinction_ratio / 10))
     laser_power = laser_power * extinction_scale
     return laser_power
 
@@ -170,11 +174,19 @@ def initalize_all_devices_power(
             )
             device_cfg["dynamic_power"] = dynamic_power
         elif "phase_shifter" in type:
-            dynamic_power = cal_PS_power(device_cfg, work_freq)
-            device_cfg["tuning_cycles"] = (
-                device_cfg["cfgs"]["response_time"] * work_freq
-            )
-            device_cfg["dynamic_power"] = dynamic_power
+            ps_power = cal_PS_power(device_cfg, work_freq)
+            if core_config.get("node", {}).get("weight_stationary_phase_shifter"):
+                # MZI-mesh phase shifters hold weights continuously (thermo-optic
+                # P_pi) rather than tuning per operation, so route the power into
+                # static hold instead of dynamic switching.
+                device_cfg["static_power"] = ps_power
+                device_cfg["dynamic_power"] = 0
+                device_cfg["tuning_cycles"] = 1
+            else:
+                device_cfg["tuning_cycles"] = (
+                    device_cfg["cfgs"]["response_time"] * work_freq
+                )
+                device_cfg["dynamic_power"] = ps_power
         elif "photodetector" in type:
             current_sensitivity = device_cfg["cfgs"]["sensitivity"]
             sensitivity = (

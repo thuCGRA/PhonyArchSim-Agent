@@ -50,7 +50,6 @@ def run_one(workload: str, run_idx: int, iterations: int) -> dict:
     cmd = [
         sys.executable,
         str(ROOT / "main.py"),
-        "--mode", "real",
         "--simphony-root", str(ROOT / "photon_tuner" / "simulators" / "simphony"),
         "--provider", LLM_PROVIDER,
         "--nn-model-factory", f"tests.factory:build_{workload}",

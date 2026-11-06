@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt coverage
+
+      # tests/run_tests.py discovers tests/ and (when langgraph is importable)
+      # tests/deep/ automatically, so a single invocation covers the whole suite.
+      - name: Run tests with coverage
+        run: coverage run --source=photon_tuner tests/run_tests.py
+
+      - name: Report coverage
+        run: coverage report -m --skip-covered

@@ -39,3 +39,15 @@ coupler:
       length: 5 # um
       width: 5 # um
       insertion_loss: 0.15 # dB
+  CPL_MMI_SiN_Angled_PS_80x13: # Low-loss and ultra-broadband silicon nitride angled MMI polarization splitter/combiner (Opt. Express 2020)
+    PDK: ""
+    platform: Si3N4 (SiN)
+    ref: "https://doi.org/10.1364/OE.405188"
+    type: Coupler
+    exp: True
+    note: "偏振分束器(PBS)式 2x2 MMI，语义非标准 3-dB 耦合器"
+    cfgs:
+      type: mmi
+      length: 80 # um
+      width: 13 # um
+      insertion_loss: 0.7 # dB（TE, C+L；TM ~0.8）

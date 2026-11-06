@@ -1,4 +1,4 @@
-"""Validate the photonic objective and insertion-loss budget penalty."""
+"""校验光子目标函数与插入损耗预算惩罚。"""
 
 import sys
 import unittest
@@ -53,7 +53,7 @@ class TestObjective(unittest.TestCase):
         self.assertAlmostEqual(penalty, 1.0)
 
     def test_il_budget_penalty_grows_over_budget(self):
-        # actual 30 / target 20 -> ratio 1.5 -> penalty = 1 + 1 * 0.5^2 = 1.25
+        # 实际 30 / 目标 20 → 比值 1.5 → penalty = 1 + 1 * 0.5^2 = 1.25
         penalty = il_budget_penalty(
             {"core_insertion_loss": 30.0}, {"il_budget": 20.0}
         )["il_budget_penalty"]

@@ -1,8 +1,8 @@
 {
   "version": 2,
   "layers": {
-    "system": {
-      "label": "system (系统架构层)",
+    "architecture": {
+      "label": "architecture (架构层)",
       "params": {
         "tiles": {
           "kind": "int",
@@ -18,7 +18,6 @@
             "system",
             "tiles"
           ],
-          "mode": "both",
           "refine": false
         },
         "cores_per_tile": {
@@ -34,7 +33,6 @@
             "system",
             "cores_per_tile"
           ],
-          "mode": "both",
           "refine": false
         },
         "dataflow": {
@@ -48,8 +46,7 @@
             "arch",
             "system",
             "dataflow"
-          ],
-          "mode": "both"
+          ]
         },
         "precision_in_bit": {
           "kind": "bits",
@@ -64,7 +61,6 @@
             "precision",
             "in_bit"
           ],
-          "mode": "both",
           "refine": false,
           "constraint": "in_bit <= dac.prec"
         },
@@ -81,7 +77,6 @@
             "precision",
             "w_bit"
           ],
-          "mode": "both",
           "refine": false
         },
         "precision_out_bit": {
@@ -97,7 +92,6 @@
             "precision",
             "out_bit"
           ],
-          "mode": "both",
           "refine": false,
           "constraint": "out_bit <= adc.prec"
         },
@@ -115,7 +109,6 @@
             "HBM",
             "bandwidth"
           ],
-          "mode": "both",
           "refine": true
         },
         "glb1_cache_size": {
@@ -134,7 +127,6 @@
             "GLB1",
             "cache_size"
           ],
-          "mode": "real",
           "refine": true
         },
         "glb2_cache_size": {
@@ -153,7 +145,6 @@
             "GLB2",
             "cache_size"
           ],
-          "mode": "real",
           "refine": true
         },
         "rf_cache_size": {
@@ -172,14 +163,8 @@
             "RF",
             "cache_size"
           ],
-          "mode": "real",
           "refine": true
-        }
-      }
-    },
-    "optical_core": {
-      "label": "optical_core (光学计算核心层)",
-      "params": {
+        },
         "core_height": {
           "kind": "int",
           "values": [
@@ -193,7 +178,6 @@
             "optical_core",
             "height"
           ],
-          "mode": "both",
           "refine": true
         },
         "core_width": {
@@ -209,7 +193,6 @@
             "optical_core",
             "width"
           ],
-          "mode": "both",
           "refine": true
         },
         "num_wavelength": {
@@ -225,7 +208,6 @@
             "optical_core",
             "num_wavelength"
           ],
-          "mode": "both",
           "refine": true
         },
         "work_freq": {
@@ -243,7 +225,6 @@
             "optical_core",
             "work_freq"
           ],
-          "mode": "both",
           "refine": true,
           "constraint": "work_freq <= mzm.symbol_rate"
         }
@@ -252,6 +233,26 @@
     "topology": {
       "label": "topology (拓扑与电路层)",
       "params": {
+        "core_kind": {
+          "kind": "enum",
+          "map": [
+            "arch",
+            "topology",
+            "core_kind"
+          ],
+          "note": "电路结构选择器。候选不在本文件声明——它们由拓扑注册表 photon_tuner/core/topology_space.py 的 CORE_KINDS 派生（evaluable=True 的全部），因为那里同时承载 real/evaluable 标志、core→node 耦合矩阵与器件槽位。本文件若重复列出会静默漂移，故加载时注入；显式写错会直接报错。",
+          "_derived_from": "topology_space.CORE_KINDS (evaluable=True)"
+        },
+        "node_kind": {
+          "kind": "enum",
+          "map": [
+            "arch",
+            "topology",
+            "node_kind"
+          ],
+          "note": "节点结构选择器。候选由 topology_space.NODE_KINDS 派生（dode / tunable_mzi / weight_mrr / pcm_cell / wdm_modulator），本文件不重复声明。",
+          "_derived_from": "topology_space.NODE_KINDS (evaluable=True)"
+        },
         "sharing_policy": {
           "kind": "enum",
           "values": [
@@ -263,8 +264,7 @@
             "arch",
             "topology",
             "sharing_policy"
-          ],
-          "mode": "both"
+          ]
         },
         "temporal_accum": {
           "kind": "enum",
@@ -277,8 +277,7 @@
             "arch",
             "topology",
             "temporal_accum"
-          ],
-          "mode": "both"
+          ]
         },
         "laser_distribution": {
           "kind": "enum",
@@ -291,8 +290,25 @@
             "arch",
             "topology",
             "laser_distribution"
+          ]
+        },
+        "mesh_rank": {
+          "kind": "int",
+          "values": [
+            4,
+            8,
+            12,
+            16,
+            32
           ],
-          "mode": "both"
+          "step": 4,
+          "map": [
+            "arch",
+            "topology",
+            "mesh_rank"
+          ],
+          "refine": true,
+          "note": "MZI mesh 的酉变换阶数 N（N×N 矩阵，N 进 N 出）。仅 mzi_mesh_* 范式生效；dptc_crossbar 惰性。小 N = 浅 mesh、低插损、低能耗，但大矩阵需分更多块（延时高）；大 N = 深 mesh、高插损、高能耗，但一次算完（延时低）。这是光子 mesh 的经典 IL-vs-吞吐权衡轴。"
         }
       }
     },
@@ -311,8 +327,7 @@
             "devices",
             "core",
             "laser_source"
-          ],
-          "mode": "both"
+          ]
         },
         "splitter_kind": {
           "kind": "enum",
@@ -324,74 +339,99 @@
             "devices",
             "core",
             "splitter_kind"
-          ],
-          "mode": "both"
+          ]
         }
       },
-      "candidates": {
+      "_device_library_snapshot": {
         "core": {
           "mzm": [
             "ACADEMIA_EO_MZM_1x1",
             "ACADEMIA_EO_MZM_2x2",
             "LT_MZM",
-            "SL_MZM"
+            "SL_MZM",
+            "TFLN_MZM_HL",
+            "SOH_MZM"
           ],
           "dac": [
             "DAC_1",
-            "DAC_2"
+            "DAC_2",
+            "DAC_3",
+            "DAC_4",
+            "DAC_5",
+            "DAC_LP_28nm",
+            "DAC_HS_16nm"
           ],
           "adc": [
-            "ADC_SAR_1"
+            "ADC_SAR_1",
+            "ADC_SAR_90GS",
+            "ADC_SAR_4P8GS_LP",
+            "ADC_SAR_2GS_LP",
+            "ADC_SAR_30GS"
           ],
           "tia": [
-            "TIA_1"
+            "TIA_1",
+            "TIA_LP",
+            "TIA_HB"
           ],
           "waveguide": [
-            "WG_Single_Strip"
+            "WG_Single_Strip",
+            "WG_SiN_Strip_650nm_VisNIR"
           ],
           "mrr_rerouter": [
-            "LT_MRR_REROUTER"
+            "LT_MRR_REROUTER",
+            "MRR_THERMAL"
           ],
           "laser_splitter": [
             "Customized_Laser_Splitter"
           ],
           "micro_comb": [
-            "LT_Micro_Comb"
+            "LT_Micro_Comb",
+            "MC_Si3N4_DKS_100GHz"
+          ],
+          "mmi": [
+            "Customized_1x10_MMI"
           ],
           "on_chip_laser": [
-            "Customized_Laser",
+            "Customized_Laser"
+          ],
+          "off_chip_laser": [
             "LT_Laser"
           ]
         },
         "node": {
           "phase_shifter": [
             "ACADEMIA_TO_PS",
-            "Customized_PS",
             "ITO_PS",
-            "MEMS_PS"
+            "MEMS_PS",
+            "IHO_PS",
+            "TFLN_EO_PS"
           ],
           "photodetector": [
             "ACADEMIA_Analog_PD",
             "ACADEMIA_Digital_PD",
-            "LT_PD"
+            "LT_PD",
+            "Sandia_GeWG_PD",
+            "NEC_APD"
           ],
           "coupler": [
             "ACADEMIA_DC_2x2",
-            "Customized_DC_1x1",
             "Customized_DC_2x2",
-            "LT_DC_2x2"
+            "LT_DC_2x2",
+            "CPL_MMI_SiN_Angled_PS_80x13"
           ],
           "y_branch": [
-            "Customized_Y_Branch",
-            "LT_Y_Branch"
+            "LT_Y_Branch",
+            "YJ_Si_Compact_1p2x2"
           ]
         }
-      }
+      },
+      "_snapshot_note": "仅为文档快照，运行时不读取。器件变体候选由 SimPhony 器件库 YAML 在运行时发现（discover_device_catalog），因此实际可搜索集合以库为准。"
     },
     "device_param": {
       "label": "device_param (器件参数层)",
       "kind": "fixed",
       "note": "library cfgs are fixed; only variant selection is searchable"
     }
-  }
+  },
+  "_note": "搜索空间候选值的唯一数据源。core_kind/node_kind 的候选由 photon_tuner/core/topology_space.py 的拓扑注册表注入，不在此声明。原 mode 字段(analytic/real)已移除：仿真只走 real。"
 }

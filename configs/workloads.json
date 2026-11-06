@@ -1,10 +1,6 @@
 {
-  "default": "synthetic",
+  "default": "vit_tiny",
   "workloads": {
-    "synthetic": {
-      "kind": "literal",
-      "description": "Legacy 3-layer baseline (conv1/conv2/linear). Numbers are identical to the historical analytic mirror, so reference tests keep passing."
-    },
     "vit_base": {
       "kind": "vit",
       "description": "ViT-Base / BERT-base encoder matching simphony/models/quantized_BERT_base.py defaults: 224px input, patch 16, dim 768, depth 12, 12 heads, MLP ratio 4.",

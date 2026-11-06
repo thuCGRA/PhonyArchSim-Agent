@@ -1,12 +1,10 @@
-"""Lightweight, dependency-free progress reporting for long tuning runs.
+"""面向长时间调优运行的轻量、无依赖进度上报。
 
-``ProgressReporter`` writes human-scannable one-line events to a stream (stdout
-by default).  Everything is optional: pass ``enabled=False`` and every method
-becomes a no-op, so a ``--quiet`` run emits nothing.
+``ProgressReporter`` 将人类可读的单行事件写入流（默认 stdout）。一切都是可选的：
+传入 ``enabled=False`` 后每个方法都变成空操作，使 ``--quiet`` 运行不输出任何内容。
 
-The reporter keeps a "current agent" so per-step ReAct events, decisions, and
-edit outcomes can be attributed to the right component without threading extra
-context through every call site.
+报告器维护一个“当前 agent”，使每一步 ReAct 事件、决策和编辑结果都能归属到
+正确的组件，而无需在每一处调用点传递额外上下文。
 """
 
 from __future__ import annotations
@@ -18,11 +16,10 @@ from typing import Any, Dict, List, Optional, TextIO
 
 
 def summarize_payload(payload: Any) -> str:
-    """One-line, size-aware description of a tool payload.
+    """工具载荷的单行、感知大小的描述。
 
-    Reports the item count plus the JSON byte size.  The byte size matters as
-    much as the count: an unbounded tool result is re-sent to the LLM on every
-    later call, which is usually the dominant cost of one iteration.
+    报告条目数量以及 JSON 字节大小。字节大小与数量同样重要：无上限的工具
+    结果会在后续每次调用时重新发送给 LLM，这通常是一次迭代的主要开销。
     """
     try:
         size = len(json.dumps(payload, ensure_ascii=False, default=str))
@@ -45,7 +42,7 @@ def summarize_payload(payload: Any) -> str:
 
 
 class ProgressReporter:
-    """Small dependency-free progress reporter for long tuning runs."""
+    """面向长时间调优运行的小型无依赖进度报告器。"""
 
     def __init__(
         self,
@@ -68,7 +65,7 @@ class ProgressReporter:
         component: str,
         message: str,
     ) -> None:
-        """Emit a free-form informational line."""
+        """输出一行自由格式的信息。"""
         if not self.enabled:
             return
         self._write(
@@ -78,7 +75,7 @@ class ProgressReporter:
             f"[eta=unknown] {message}"
         )
 
-    # -- Live agent / step reporting --------------------------------------- #
+    # -- 实时 agent / step 上报 -------------------------------------------- #
 
     def begin_agent(
         self,
@@ -88,7 +85,7 @@ class ProgressReporter:
         total_iterations: Optional[int],
         detail: str = "",
     ) -> None:
-        """Start watching one agent run; subsequent :meth:`step` calls report under it."""
+        """开始观察一次 agent 运行；后续 :meth:`step` 调用将在此上下文下上报。"""
         if not self.enabled:
             return
         self._current_agent = {
@@ -105,7 +102,7 @@ class ProgressReporter:
         self._write(f"{prefix} {detail}" if detail else f"{prefix} working")
 
     def end_agent(self, *, status: str = "DONE", detail: str = "") -> None:
-        """Finish the currently watched agent and report its wall time."""
+        """结束当前观察的 agent 并上报其墙钟时间。"""
         if not self.enabled:
             return
         context = self._current_agent or {}
@@ -120,7 +117,7 @@ class ProgressReporter:
         self._agent_start = None
 
     def step(self, event: Dict[str, Any]) -> None:
-        """Report one ReAct step (LLM decision or tool execution)."""
+        """上报一个 ReAct 步骤（LLM 决策或工具执行）。"""
         if not self.enabled:
             return
         context = self._current_agent or {}
@@ -173,7 +170,7 @@ class ProgressReporter:
         component: str,
         message: str,
     ) -> None:
-        """Report the compact outcome of an agent (what it decided)."""
+        """上报 agent 的简要结果（它做出了什么决策）。"""
         if not self.enabled:
             return
         self._write(
@@ -190,7 +187,7 @@ class ProgressReporter:
         before: Dict[str, Any],
         after: Dict[str, Any],
     ) -> None:
-        """Report the simulated metric change of one proposal."""
+        """上报单个提案的仿真指标变化。"""
         if not self.enabled:
             return
 
@@ -219,11 +216,10 @@ class ProgressReporter:
         error: str = "",
         detail: str = "",
     ) -> None:
-        """Report one hardware-edit application (applied or rejected).
+        """上报一次硬件编辑应用（已应用或已拒绝）。
 
-        Edits happen *after* the ReAct loop, so without this hook a rejected
-        edit is invisible while the final ``strategy`` text may still describe
-        it as if it had been applied.
+        编辑发生在 ReAct 循环*之后*，因此若没有此钩子，被拒绝的编辑将不可见，
+        而最终的 ``strategy`` 文本可能仍把它描述成已被应用。
         """
         if not self.enabled:
             return
@@ -239,7 +235,7 @@ class ProgressReporter:
         else:
             self._write(f"{head}[EDIT][FAIL] {name}{rendered} -> {self._clip(error, 140)}")
 
-    # -- small formatting helpers ------------------------------------------ #
+    # -- 小型格式化辅助函数 ------------------------------------------------- #
 
     def _fmt_short(self, seconds: float) -> str:
         if seconds < 60:
@@ -248,7 +244,7 @@ class ProgressReporter:
         return f"{minutes}m{secs:02d}s"
 
     def _clip(self, text: Any, limit: int = 200) -> str:
-        """Collapse whitespace and clip long LLM prose so lines stay scannable."""
+        """压缩空白并截断过长的 LLM 文本，使输出行保持可读。"""
         collapsed = " ".join(str(text).split())
         if len(collapsed) <= limit:
             return collapsed

@@ -1,4 +1,4 @@
-"""Tests for the loadable workload layer (real models in analytic mode)."""
+"""可加载工作负载层（analytic 模式下的真实模型）的测试。"""
 
 import sys
 import unittest
@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from tests._subarch import sub_arch
 from photon_tuner.core.search_space import default_hardware
 from photon_tuner.common.utils import layer_group
 from photon_tuner.core.workload import (
@@ -15,24 +16,22 @@ from photon_tuner.core.workload import (
     cycle_tuple,
     im2col_shapes,
     loading_factor_calculator,
-    synthetic_cycles,
-    synthetic_layer_sizes,
 )
 from photon_tuner.simulators.analytic import evaluate
 
 
 ROOT = str(Path(__file__).resolve().parents[1] / "photon_tuner" / "simulators" / "simphony")
 
-#: ViT-base: patch_embed + 12 blocks x 6 sub-layers.
+#: ViT-base：patch_embed + 12 个 block × 6 个子层。
 VIT_BASE_LAYER_COUNT = 1 + 12 * 6
 VIT_SUB_LAYERS = ("qkv", "attn.qk", "attn.av", "out_proj", "ffn.fc1", "ffn.fc2")
 
 
 class TestIm2ColShapes(unittest.TestCase):
-    """The ported reshape logic must return (input, weight) in SimPhony order."""
+    """移植的 reshape 逻辑必须按 SimPhony 顺序返回 (input, weight)。"""
 
     def test_linear_shapes(self):
-        # PyTorch Linear weight is (out_features, in_features).
+        # PyTorch Linear 权重为 (out_features, in_features)。
         reshaped_input, reshaped_weight = im2col_shapes(
             "Linear", weight_shape=[2304, 768], input_shape=[197, 768]
         )
@@ -62,7 +61,7 @@ class TestIm2ColShapes(unittest.TestCase):
 
 
 class TestCycleArithmetic(unittest.TestCase):
-    """cycle_tuple must reproduce SimPhony's partition arithmetic."""
+    """cycle_tuple 必须复现 SimPhony 的分区算术。"""
 
     def test_loading_factors(self):
         self.assertEqual(loading_factor_calculator("full", "full", "full"), (1, 1))
@@ -78,24 +77,28 @@ class TestCycleArithmetic(unittest.TestCase):
         )
         iter_n, iter_d, iter_m, n, d, m, fw, fx = cycle
         self.assertEqual((n, d, m), (2304, 768, 197))
-        # arch dims: height = 4*2 = 8, width = 4*2 = 8, wavelength = 12
+        # 架构维度：height = 4*2 = 8、width = 4*2 = 8、wavelength = 12
         self.assertEqual(iter_n, -(-2304 // 8))
         self.assertEqual(iter_m, -(-197 // 8))
         self.assertEqual(iter_d, -(-768 // 12))
         self.assertEqual((fw, fx), (1, 1))
 
     def test_cycle_tuple_rejects_mismatched_dims(self):
-        # weight in_features=8 but the input's last dim is 3.
+        # weight in_features=8，但输入最后一维为 3。
         matrices = im2col_shapes("Linear", weight_shape=[10, 8], input_shape=[4, 3])
         with self.assertRaises(WorkloadError):
             cycle_tuple(miniblock=DEFAULT_MINIBLOCK, matrices=matrices, multi_wavelength=12)
 
 
 class TestWorkloadBuilders(unittest.TestCase):
-    def test_synthetic_matches_legacy_constants(self):
-        workload = build_workload("synthetic", simphony_root=ROOT)
-        self.assertEqual(workload["cycles"], synthetic_cycles())
-        self.assertEqual(workload["layer_sizes"], synthetic_layer_sizes())
+    def test_vit_tiny_layer_structure(self):
+        workload = build_workload("vit_tiny", {"num_wavelength": 12}, simphony_root=ROOT)
+        cycles = workload["cycles"]
+        # patch_embed + 4 个 block × 6 个子层。
+        self.assertEqual(len(cycles), 1 + 4 * 6)
+        self.assertIn("patch_embed", cycles)
+        for suffix in VIT_SUB_LAYERS:
+            self.assertIn(f"layers.0.{suffix}", cycles)
 
     def test_vit_base_layer_structure(self):
         workload = build_workload("vit_base", {"num_wavelength": 12}, simphony_root=ROOT)
@@ -115,7 +118,7 @@ class TestWorkloadBuilders(unittest.TestCase):
                 self.assertGreater(size[key][0], 0, msg=f"{name} has non-positive {key}")
 
     def test_cycles_respond_to_wavelength(self):
-        """More wavelengths must reduce iter_D (the D dimension is tiled)."""
+        """更多波长必须减少 iter_D（D 维度被分块铺开）。"""
         wide = build_workload("vit_base", {"num_wavelength": 8}, simphony_root=ROOT)
         narrow = build_workload("vit_base", {"num_wavelength": 24}, simphony_root=ROOT)
         self.assertGreater(
@@ -145,7 +148,7 @@ class TestWorkloadBuilders(unittest.TestCase):
 
 
 class TestLayerGroupRegression(unittest.TestCase):
-    """Fused QKV must not be swallowed by the attention rule (old bug)."""
+    """融合 QKV 不得被 attention 规则吞掉。"""
 
     def test_qkv_projection_is_reachable(self):
         self.assertEqual(layer_group("layers.0.qkv"), "qkv_projection")
@@ -165,23 +168,24 @@ class TestRealWorkloadEvaluation(unittest.TestCase):
     def setUpClass(cls):
         cls.hardware = default_hardware()
 
-    def test_default_workload_is_synthetic_and_unchanged(self):
+    def test_default_workload_is_vit_tiny(self):
         report = evaluate(self.hardware, ROOT)
-        self.assertEqual(report["workload"]["name"], "synthetic")
-        self.assertEqual(report["metrics"]["energy_pj"], 1699934.162077174)
+        self.assertEqual(report["workload"]["name"], "vit_tiny")
+        # 默认 node 相移器为 MEMS_PS（P_pi 已按 10 nW 级订正）。
+        self.assertAlmostEqual(report["metrics"]["energy_pj"], 115562731.63852626, places=3)
 
     def test_vit_workload_produces_varied_layer_profile(self):
         report = evaluate(self.hardware, ROOT, workload_name="vit_base")
         self.assertEqual(report["workload"]["name"], "vit_base")
-        cycles = report["workload"]["partition_cycles"]["LT"]
+        cycles = sub_arch(report["workload"]["partition_cycles"])
         self.assertEqual(len(cycles), VIT_BASE_LAYER_COUNT)
 
         switching = {name: cycle[0] * cycle[1] * cycle[2] for name, cycle in cycles.items()}
-        # A ViT has 12 identical blocks, so only a handful of distinct sub-layer
-        # archetypes exist -- but never a single constant (the legacy behaviour).
+        # ViT 有 12 个相同的 block，因此只存在少数几种不同的子层原型——但绝不止
+        # 单一常量。
         self.assertGreaterEqual(len(set(switching.values())), 5)
 
-        # The blocks really do repeat with period 6.
+        # 这些 block 确实以周期 6 重复。
         for suffix in VIT_SUB_LAYERS:
             self.assertEqual(
                 switching[f"layers.0.{suffix}"],
@@ -191,23 +195,23 @@ class TestRealWorkloadEvaluation(unittest.TestCase):
 
         top = max(switching, key=switching.get)
         bottom = min(switching, key=switching.get)
-        self.assertNotEqual(layer_group(top), "")  # sanity
+        self.assertNotEqual(layer_group(top), "")  # 健全性检查
         self.assertGreater(switching[top], switching[bottom])
 
     def test_vit_memory_energy_varies_per_layer(self):
         report = evaluate(self.hardware, ROOT, workload_name="vit_base")
-        memory_energy = report["memory"]["energy"]["LT"]
+        memory_energy = sub_arch(report["memory"]["energy"])
         self.assertGreater(len(memory_energy), 1)
         self.assertGreaterEqual(len(set(memory_energy.values())), 5)
 
     def test_vit_operator_groups_are_dominated_by_projections_and_ffn(self):
         report = evaluate(self.hardware, ROOT, workload_name="vit_base")
-        cycles = report["workload"]["partition_cycles"]["LT"]
+        cycles = sub_arch(report["workload"]["partition_cycles"])
         totals = {}
         for name, cycle in cycles.items():
             group = layer_group(name)
             totals[group] = totals.get(group, 0) + cycle[0] * cycle[1] * cycle[2]
-        # Weight-reuse GEMMs dominate the cycle budget.
+        # 权重复用的 GEMM 主导周期预算。
         dominant = max(totals, key=totals.get)
         self.assertIn(dominant, {"attention", "qkv_projection", "ffn"})
         self.assertGreater(totals["ffn"], 0)
@@ -216,52 +220,51 @@ class TestRealWorkloadEvaluation(unittest.TestCase):
         prebuilt = build_workload("vit_tiny", {"num_wavelength": 12}, simphony_root=ROOT)
         report = evaluate(self.hardware, ROOT, workload=prebuilt)
         self.assertEqual(report["workload"]["name"], "vit_tiny")
-        self.assertEqual(len(report["workload"]["partition_cycles"]["LT"]), 1 + 4 * 6)
+        self.assertEqual(len(sub_arch(report["workload"]["partition_cycles"])), 1 + 4 * 6)
 
     def test_layer_profile_responds_to_hardware(self):
-        """P0 goal: the per-layer demand profile must move with the hardware."""
+        """P0 目标：逐层需求画像必须随硬件变化。"""
         narrow = default_hardware()
         narrow["arch"]["optical_core"]["num_wavelength"] = 8
         wide = default_hardware()
         wide["arch"]["optical_core"]["num_wavelength"] = 24
 
-        a = evaluate(narrow, ROOT, workload_name="vit_base")["workload"]["partition_cycles"]["LT"]
-        b = evaluate(wide, ROOT, workload_name="vit_base")["workload"]["partition_cycles"]["LT"]
+        a = sub_arch(evaluate(narrow, ROOT, workload_name="vit_base")["workload"]["partition_cycles"])
+        b = sub_arch(evaluate(wide, ROOT, workload_name="vit_base")["workload"]["partition_cycles"])
 
-        # The D dimension is tiled onto the wavelength axis: more wavelengths
-        # mean fewer D iterations for the same layer.
+        # D 维度被铺到波长轴上：波长越多，同一层的 D 迭代越少。
         self.assertGreater(a["layers.0.qkv"][1], b["layers.0.qkv"][1])
         self.assertNotEqual(a["layers.0.attn.qk"], b["layers.0.attn.qk"])
 
-        # And the whole-design energy moves with it.
+        # 且整设计能量随之变化。
         ea = evaluate(narrow, ROOT, workload_name="vit_base")["metrics"]["energy_pj"]
         eb = evaluate(wide, ROOT, workload_name="vit_base")["metrics"]["energy_pj"]
         self.assertNotAlmostEqual(ea, eb, places=3)
 
     def test_area_is_workload_independent(self):
-        """Area is a hardware property; only energy/latency may move."""
-        synthetic = evaluate(self.hardware, ROOT)
-        vit = evaluate(self.hardware, ROOT, workload_name="vit_small")
+        """面积是硬件属性；只有能量/延迟会变化。"""
+        tiny = evaluate(self.hardware, ROOT, workload_name="vit_tiny")
+        small = evaluate(self.hardware, ROOT, workload_name="vit_small")
         self.assertAlmostEqual(
-            synthetic["metrics"]["area_um2"], vit["metrics"]["area_um2"], places=6
+            tiny["metrics"]["area_um2"], small["metrics"]["area_um2"], places=6
         )
 
     def test_per_layer_energy_sums_to_total(self):
-        """The native per-layer breakdown must be lossless."""
+        """原生逐层分解必须无损。"""
         report = evaluate(self.hardware, ROOT, workload_name="vit_base")
-        by_layer = report["energy"]["by_layer"]["LT"]
+        by_layer = sub_arch(report["energy"]["by_layer"])
         self.assertEqual(
-            set(by_layer), set(report["workload"]["partition_cycles"]["LT"])
+            set(by_layer), set(sub_arch(report["workload"]["partition_cycles"]))
         )
         self.assertAlmostEqual(
             sum(by_layer.values()), report["metrics"]["energy_pj"], places=3
         )
 
     def test_per_layer_energy_is_not_a_cycles_estimate(self):
-        """P1: native energy must carry information the cycle share cannot."""
+        """P1：原生能量必须携带周期占比所不能承载的信息。"""
         report = evaluate(self.hardware, ROOT, workload_name="vit_base")
-        by_layer = report["energy"]["by_layer"]["LT"]
-        cycles = report["workload"]["partition_cycles"]["LT"]
+        by_layer = sub_arch(report["energy"]["by_layer"])
+        cycles = sub_arch(report["workload"]["partition_cycles"])
         switching = {name: c[0] * c[1] * c[2] for name, c in cycles.items()}
         total_switching = sum(switching.values())
         total_energy = report["metrics"]["energy_pj"]
@@ -272,9 +275,8 @@ class TestRealWorkloadEvaluation(unittest.TestCase):
         ]
         self.assertGreater(max(deviations), 1.0)
 
-        # ffn.fc1 and ffn.fc2 share an identical cycle count, so a
-        # cycles-proportional estimate cannot tell them apart -- the native
-        # breakdown must.
+        # ffn.fc1 与 ffn.fc2 周期数相同，因此按周期比例的估计无法区分二者——原生
+        # 分解必须能够区分。
         self.assertNotAlmostEqual(
             by_layer["layers.0.ffn.fc1"], by_layer["layers.0.ffn.fc2"], places=3
         )
@@ -345,12 +347,12 @@ class TestLayerRankToolUsesNativeEnergy(unittest.TestCase):
         for expected in ("ffn", "qkv_projection", "attention", "embedding"):
             self.assertIn(expected, names)
 
-        # Shares are normalised and the list is ranked by energy.
+        # 占比已归一化，且列表按能量排序。
         self.assertAlmostEqual(sum(g["energy_share"] for g in groups), 1.0, places=6)
         energies = [g["energy_pj"] for g in groups]
         self.assertEqual(energies, sorted(energies, reverse=True))
 
-        # Every layer is accounted for exactly once, and truncation is honoured.
+        # 每层恰好被计入一次，且截断被遵守。
         self.assertEqual(sum(g["layer_count"] for g in groups), 25)
         for group in groups:
             self.assertLessEqual(len(group["top_layers"]), 2)

@@ -1,34 +1,27 @@
-"""Objective function for photonic design-space exploration.
+"""光子设计空间探索的目标函数。
 
-The scalarisation follows the shape popularised by LLM-driven chiplet DSE
-frameworks (the work this project is *architecturally* inspired by — see
-``NOTICE``): a product of normalised latency, energy, and cost.  For a photonic
-accelerator the cost term is chip *area* (a first-order fabrication-cost proxy)
-and the energy term is *energy per MAC*, the figure photonic papers quote::
+标量化采用归一化延迟、能耗与成本三者的乘积：::
 
     objective = latency_s * pJ_per_mac * area_um2
 
-For a fixed workload ``pJ_per_mac = energy_pj / total_macs``, so this ranks
-identically to ``latency_s * energy_pj * area_um2`` (up to the constant
-``1 / total_macs``) while normalising the objective's magnitude and making it
-comparable across workloads.
+对光子加速器而言，成本项为芯片面积（一阶制造成本的近似），能耗项为每 MAC
+能耗（论文中常引用的指标）。对于固定工作负载，
+``pJ_per_mac = energy_pj / total_macs``，因此该目标与
+``latency_s * energy_pj * area_um2`` 的排序一致（相差常数
+``1 / total_macs``），同时归一化了目标的量级，使其可在不同工作负载间比较。
 
-Lower is better.  Two extensions make the scalarisation actually use the
-trade-offs SimPhony *does* report (e.g. ``num_wavelength``: more wavelengths
-cut latency/energy but grow area):
+值越小越优。两项扩展让标量化真正利用 SimPhony 上报的权衡（例如
+``num_wavelength``：更多波长可降低延迟/能耗，但会增大面积）：
 
-* **Configurable weights** -- ``search_space["objective_weights"]`` maps
-  ``{latency, energy, area}`` (or the metric keys) to exponents, giving a
-  weighted geometric mean.  ``energy`` / ``energy_pj`` alias to ``pJ_per_mac``.
-* **Insertion-loss budget penalty** -- an optional one-sided soft penalty keeps
-  the longest optical path under ``search_space["il_budget"]`` (dB).  It anchors
-  the *optical link budget* (laser power vs photodetector sensitivity) instead
-  of a digital throughput target.
+* **可配置权重** -- ``search_space["objective_weights"]`` 将
+  ``{latency, energy, area}``（或对应的指标键）映射为指数，形成加权几何平均。
+  ``energy`` / ``energy_pj`` 是 ``pJ_per_mac`` 的别名。
+* **插入损耗预算惩罚** -- 可选的单边软惩罚，将最长光路限制在
+  ``search_space["il_budget"]``（dB）以内，用于约束光链路预算
+  （激光功率与光电探测器灵敏度），而非数字吞吐目标。
 
-Weights only *reallocate* trade-offs that already exist in the metric model;
-they cannot create one where SimPhony's formulas are monotonic (e.g.
-``work_freq`` is a free lunch in both the mirror and the real SimPhony, and is
-bounded by device-bandwidth hard constraints rather than this scalarisation).
+权重只会重新分配指标模型中已存在的权衡，无法在 SimPhony 公式单调的区域
+凭空制造权衡（例如 ``work_freq`` 受器件带宽硬约束限制，而非本标量化）。
 """
 
 from __future__ import annotations
@@ -50,10 +43,10 @@ _WEIGHT_ALIASES = {
 
 
 def objective_weights(search_space: Optional[Mapping[str, Any]]) -> Dict[str, float]:
-    """Return ``{metric_key: exponent}`` with defaults of 1.0 (equal weight).
+    """返回 ``{metric_key: exponent}``，默认指数为 1.0（等权重）。
 
-    Accepts ``search_space["objective_weights"]`` keyed by either short names
-    (``latency`` / ``energy`` / ``area``) or the metric keys themselves.
+    接收 ``search_space["objective_weights"]``，其键既可以是短名称
+    （``latency`` / ``energy`` / ``area``），也可以是指标键本身。
     """
     raw = (search_space or {}).get("objective_weights") if isinstance(search_space, Mapping) else None
     weights = {key: 1.0 for key in DEFAULT_METRIC_KEYS}
@@ -71,7 +64,7 @@ def base_objective(
     metrics: Mapping[str, Any],
     weights: Optional[Mapping[str, float]] = None,
 ) -> float:
-    """Weighted product of the three required positive metrics."""
+    """三个必需正指标的加权乘积。"""
     weights = weights or {key: 1.0 for key in DEFAULT_METRIC_KEYS}
     value = 1.0
     for key in DEFAULT_METRIC_KEYS:
@@ -94,13 +87,13 @@ def metrics_with_objective(
     hardware: Optional[Mapping[str, Any]] = None,
     search_space: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, float]:
-    """Return the metrics dict enriched with the scalar objective."""
+    """返回附加了标量化目标值的指标字典。"""
     weights = objective_weights(search_space)
     enriched: Dict[str, float] = {key: float(metrics[key]) for key in metrics}
     enriched["base_objective"] = base_objective(metrics, weights)
-    # Expose weights as *scalar* keys (not a nested dict) so this function stays
-    # idempotent: the tuner re-runs it on the already-enriched metrics, and a
-    # dict value would make ``float(...)`` above raise TypeError.
+    # 权重以标量键（而非嵌套字典）暴露，保证本函数幂等：调优器会对
+    # 已扩充的指标再次调用本函数，若使用字典值会使上面的 ``float(...)``
+    # 抛出 TypeError。
     for key, weight in weights.items():
         enriched[f"weight_{key}"] = weight
     enriched.update(il_budget_penalty(metrics, search_space))
@@ -112,14 +105,12 @@ def il_budget_penalty(
     metrics: Mapping[str, Any],
     search_space: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, float]:
-    """One-sided soft penalty when the optical link exceeds its insertion-loss budget.
+    """光链路超过插入损耗预算时的单边软惩罚。
 
-    Anchors the *optical link budget* -- the maximum total insertion loss (dB)
-    the laser can overcome while still delivering the photodetector's
-    sensitivity.  A design whose ``core_insertion_loss`` exceeds
-    ``search_space["il_budget"]`` is punished on the over-budget side only
-    (under-provisioning is already priced in via latency), with a bounded
-    quadratic so it stays a soft constraint.
+    约束光链路预算——即激光在仍能满足光电探测器灵敏度的前提下所能克服的
+    最大总插入损耗（dB）。当设计的 ``core_insertion_loss`` 超过
+    ``search_space["il_budget"]`` 时，仅对超预算一侧进行惩罚（预算不足已通过
+    延迟计入成本），并使用有界二次项，使其保持软约束。
     """
     ss = search_space if isinstance(search_space, Mapping) else {}
     target = _positive_float(ss.get("il_budget"), default=None)

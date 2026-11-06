@@ -59,3 +59,37 @@ mzm:
       testing_bit: 1  # Here is the b bit for efficiency
       eo_bandwidth: 12.5 # GHz
       modulation_speed: 25 # Gbps
+  TFLN_MZM_HL: # High-performance hybrid silicon and lithium niobate MZMs for 100 Gbit/s and beyond (Nature Photonics 13, 2019)
+    PDK: ""
+    platform: hybrid Si / thin-film LiNbO3
+    ref: "https://doi.org/10.1038/s41566-019-0378-6"
+    type: MZM
+    exp: True
+    note: "width 为折中构造（论文未报道封装占位宽，按库内毫米级 ACADEMIA MZM 同量级取 460um）；efficiency 700 fJ/bit 为论文作者估算值"
+    cfgs:
+      length: 3000 # um (3-mm phase-shifter arm)
+      width: 460 # um（折中构造：论文未报道，按 ACADEMIA MZM 占位宽同量级估算）
+      static_power: 0 # mW
+      insertion_loss: 2.5 # dB
+      extinction_ratio: 40 # dB（静态；动态 11.8@56G ... 5.0@100G）
+      efficiency: 700 # fJ/bit（作者估算，非直接实测）
+      testing_bit: 1
+      eo_bandwidth: 70 # GHz（>70，超出 VNA 测试上限）
+      modulation_speed: 112 # Gbps（56 GBaud PAM-4）
+  SOH_MZM: # Silicon-Organic Hybrid (SOH) Mach-Zehnder Modulators for 100 Gbit/s OOK (Scientific Reports 2018)
+    PDK: ""
+    platform: silicon-organic hybrid (SOH)
+    ref: "https://doi.org/10.1038/s41598-017-19061-8"
+    type: MZM
+    exp: True
+    note: "width 为折中构造（论文未报道，取 slot 电极+波导占位 50um）；insertion_loss 20dB 为论文损耗预算分项加总"
+    cfgs:
+      length: 1100 # um (1.1-mm slot phase shifter)
+      width: 50 # um（折中构造：论文未报道）
+      static_power: 0 # mW
+      insertion_loss: 20 # dB（论文损耗预算分项加总：光栅对+转换器+MMI+波导+slot 段）
+      extinction_ratio: 14 # dB（静态；动态 5-7@100Gb/s）
+      efficiency: 98 # fJ/bit（<98，100G OOK 记录值）
+      testing_bit: 1
+      eo_bandwidth: 25 # GHz（6-dB EOE 点）
+      modulation_speed: 100 # Gbps（OOK，10 km）

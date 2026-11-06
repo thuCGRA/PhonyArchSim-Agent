@@ -12,7 +12,7 @@
 set -euo pipefail
 
 _PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-_VENV="$_PROJECT_ROOT/.venv-real"
+_VENV="$_PROJECT_ROOT/.venv-simulator"
 
 echo "==> [1/8] locating Python <=3.10"
 _PYTHON="${PYTHON:-}"
@@ -81,6 +81,6 @@ cat <<EOF
 Next:
   1. cp configs/llm.example.json configs/llm.json   # and fill in api_key
   2. source scripts/env/activate_real.sh
-  3. python3 main.py --mode real --provider <p> --model <m> \\
+  3. python3 main.py --provider <p> --model <m> \\
        --nn-model-factory tests.factory:build_vit_tiny --workload vit_tiny
 EOF
