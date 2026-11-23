@@ -42,9 +42,9 @@ class TestMeshEvaluation(unittest.TestCase):
     def test_clements_metrics_finite_and_positive(self):
         report = evaluate(_mesh_hw("mzi_mesh_clements", 4), SIM_ROOT)
         m = report["metrics"]
-        self.assertTrue(m["energy_pj"] > 0)
-        self.assertTrue(m["area_um2"] > 0)
-        self.assertTrue(m["latency_s"] > 0)
+        self.assertTrue(m["energy_mj"] > 0)
+        self.assertTrue(m["area_mm2"] > 0)
+        self.assertTrue(m["latency_ms"] > 0)
 
     def test_mzi_device_count_matches_paper(self):
         # N=4 Clements：n_mzi = 6；tiles=4、cores=2 → 6*4*2 = 48 个 MZI。
@@ -74,8 +74,8 @@ class TestMeshEvaluation(unittest.TestCase):
     def test_reck_and_butterfly_evaluate(self):
         for kind in ("mzi_mesh_reck", "mzi_mesh_butterfly"):
             report = evaluate(_mesh_hw(kind, 4), SIM_ROOT)
-            self.assertTrue(report["metrics"]["energy_pj"] > 0, kind)
-            self.assertTrue(report["metrics"]["area_um2"] > 0, kind)
+            self.assertTrue(report["metrics"]["energy_mj"] > 0, kind)
+            self.assertTrue(report["metrics"]["area_mm2"] > 0, kind)
 
     def test_mesh_component_loss_breakdown_is_populated(self):
         # mesh 实例名（"i_mzi_0"、"i_laser" 等）必须在复制索引剥离后保留，否则
@@ -115,7 +115,7 @@ class TestMeshDeviceLayerAuthority(unittest.TestCase):
             sub_arch(after["insertion_loss"])["core_insertion_loss"],
             sub_arch(before["insertion_loss"])["core_insertion_loss"],
         )
-        self.assertLess(after["metrics"]["energy_pj"], before["metrics"]["energy_pj"])
+        self.assertLess(after["metrics"]["energy_mj"], before["metrics"]["energy_mj"])
 
     def test_deeper_mesh_is_worse_than_clements(self):
         # 相同模式数下 Reck（深度 2N-3）必须比 Clements（深度 N）损耗更多光——
@@ -191,7 +191,7 @@ class TestCrossParadigmPareto(unittest.TestCase):
         # 原始轴上 crossbar 与 mesh 仍有面积换 IL 的权衡（两者互不支配）。
         from photon_tuner.core.pareto import ParetoArchive
 
-        archive = ParetoArchive(minimize_keys=["energy_pj", "area_um2", "latency_s", "core_insertion_loss"])
+        archive = ParetoArchive(minimize_keys=["energy_mj", "area_mm2", "latency_ms", "core_insertion_loss"])
         crossbar, clements = self._crossbar_and_clements()
         archive.add(self._metrics(crossbar), meta={"core_kind": "dptc_crossbar"})
         archive.add(self._metrics(clements), meta={"core_kind": "mzi_mesh_clements"})
@@ -200,7 +200,7 @@ class TestCrossParadigmPareto(unittest.TestCase):
         self.assertEqual(kinds, {"dptc_crossbar", "mzi_mesh_clements"})
         # mesh 以面积换取插入损耗：面积更小、IL 更高。
         by = {p["meta"]["core_kind"]: p["metrics"] for p in archive.frontier()}
-        self.assertLess(by["mzi_mesh_clements"]["area_um2"], by["dptc_crossbar"]["area_um2"])
+        self.assertLess(by["mzi_mesh_clements"]["area_mm2"], by["dptc_crossbar"]["area_mm2"])
         self.assertGreater(by["mzi_mesh_clements"]["core_insertion_loss"], by["dptc_crossbar"]["core_insertion_loss"])
 
     def test_throughput_normalization_dominates_mesh(self):
@@ -230,9 +230,9 @@ class TestCrossParadigmPareto(unittest.TestCase):
 
         # 面积：MZI 数相同，但 Reck 含交叉 → 面积更高。
         # Reck 更深的（2N-3）最坏路径 + 交叉插损抬高了 core IL 以及（经由激光链路预算）能量。
-        self.assertGreater(m_reck["area_um2"], m_clem["area_um2"])
+        self.assertGreater(m_reck["area_mm2"], m_clem["area_mm2"])
         self.assertGreater(m_reck["core_insertion_loss"], m_clem["core_insertion_loss"])
-        self.assertGreater(m_reck["energy_pj"], m_clem["energy_pj"])
+        self.assertGreater(m_reck["energy_mj"], m_clem["energy_mj"])
 
         archive = ParetoArchive()
         self.assertTrue(archive.add(m_clem, meta={"core_kind": "mzi_mesh_clements"}))

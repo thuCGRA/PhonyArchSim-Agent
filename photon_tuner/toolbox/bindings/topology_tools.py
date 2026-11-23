@@ -82,21 +82,59 @@ def build_topology_tools(
         """当前拓扑下真正生效 / 已被禁用 / 可实现的参数缺口。"""
         hw = run_state.context.current_hardware or {}
         core_kind = ((hw.get("arch") or {}).get("topology") or {}).get("core_kind")
-        table = param_scope_table(core_kind)
+        # 以**完整设计空间**为准枚举参数。只调用 topology_space.param_scope_table
+        # 会漏掉未被 PARAM_SCOPE 分族的参数（tiles / 精度 / 带宽 / 缓存 /
+        # work_freq / sharing_policy / core_kind ...），智能体据此会误判这些轴
+        # 不存在——这正是此前"架构层只剩 4 根旋钮、拓扑层零可搜索轴"的根因。
+        if design_space is not None and hasattr(design_space, "scope_table"):
+            table = design_space.scope_table(core_kind, mode)
+        else:  # 无 DesignSpace 时的退化路径
+            table = param_scope_table(core_kind)
         params = table["params"]
+        searchable = {
+            name: status for name, status in params.items()
+            if status["status"] == "effective"
+        }
+        # 把"这个旋钮主要动哪个因子"的领域知识随可见性一起给出。缺了它，
+        # 智能体只能凭先验猜方向，实测会提出"能耗与延时都变好但面积涨 45%"的
+        # 提案——在乘积目标下是净亏。
+        from photon_tuner.core.search_space import PARAM_EFFECT_NOTES
+        effects = {
+            name: PARAM_EFFECT_NOTES[name]
+            for name in searchable if name in PARAM_EFFECT_NOTES
+        }
+        grouped: dict = {}
+        for name, status in searchable.items():
+            grouped.setdefault(str(status.get("layer", "?")), []).append(name)
         return {
             "core_kind": table["core_kind"],
             "family": table["family"],
             "family_label": table["family_label"],
-            "searchable": sorted(p for p, s in params.items() if s["status"] == "effective"),
+            "searchable": sorted(searchable),
+            "searchable_by_layer": {k: sorted(v) for k, v in grouped.items()},
+            "design_dimensions": {
+                name: status["dimension"] for name, status in searchable.items()
+                if "dimension" in status
+            },
+            "edit_tools": {
+                name: status["edit_tool"] for name, status in searchable.items()
+                if "edit_tool" in status
+            },
+            "effect_notes": effects,
             "disabled": {
                 p: {"status": s["status"], "by": s.get("by"),
                     "reason": s.get("reason"), "action": s.get("action")}
                 for p, s in params.items()
                 if s["status"] != "effective"
             },
-            "note": "Adjusting a disabled parameter has no effect on the simulation "
-                    "result; the gate will reject it. Follow `action` instead.",
+            "note": "`effect_notes` states, for each searchable parameter, which "
+                    "objective factor it mainly moves and the main caveat — use it to "
+                    "predict the direction of a change before proposing it. "
+                    "`searchable` lists parameters with an edit path for this template. "
+                    "Candidate values remain subject to hardware constraints and may "
+                    "produce equivalent results. Use `edit_tools` for parameters "
+                    "that require a specific edit interface. "
+                    "Consult the reason and action fields for disabled parameters.",
         }
 
     summarize = StructuredTool.from_function(

@@ -17,14 +17,14 @@ from typing import Any, Dict, List
 
 # 前沿进行权衡的原始指标（均为最小化目标）。``objective`` 被刻意排除：
 # 它是由这些指标派生的加权标量，而前沿关注的是底层权衡，而非某一种标量化。
-# 跨范式比较用 *吞吐归一化* 指标：能耗归一化到每 MAC（pJ_per_mac）、面积归一化到
-# 每单位吞吐 MAC/s（area_um2_per_mac_per_s），使并行权重阵列（单输出向量、器件少
+# 跨范式比较用 *吞吐归一化* 指标：能耗归一化到每 MAC（fJ_per_mac）、面积归一化到
+# 每单位吞吐 MAC/s（area_mm2_per_mac_per_ms），使并行权重阵列（单输出向量、器件少
 # 但吞吐低）与矩阵阵列（器件多但吞吐高）在同一效率轴上可比，而非被原始面积/能耗
-# 假性支配。``latency_s`` 与 ``core_insertion_loss`` 保持原始量纲（时间/光学预算）。
+# 假性支配。``latency_ms`` 与 ``core_insertion_loss`` 保持原始量纲（时间/光学预算）。
 DEFAULT_MINIMIZE_KEYS = [
-    "pJ_per_mac",
-    "area_um2_per_mac_per_s",
-    "latency_s",
+    "fJ_per_mac",
+    "area_mm2_per_mac_per_ms",
+    "latency_ms",
     "core_insertion_loss",
 ]
 

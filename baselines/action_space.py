@@ -123,17 +123,28 @@ class ActionSpace:
         # core/node 与 mesh_core/mesh_node 两张表。
         self.include_weight_array_devices = include_weight_array_devices
         self._cache: Dict[str, List[Tuple[Action, Dict[str, Any]]]] = {}
+        # 只暴露在该后端下**真正被读取**的参数：否则基线也会把评估预算浪费在
+        # 惰性旋钮上（实测 real 模式下 hbm_bandwidth / precision_w_bit 完全不动）。
+        from photon_tuner.core.topology_space import mode_status
+
+        def _live(layer: str, name: str) -> bool:
+            return mode_status(name, mode) is None
+
         self._architecture_params = [
             (layer, name, spec)
             for layer, name, spec in space.params()
-            if layer == ARCH_LAYER
+            if layer == ARCH_LAYER and _live(layer, name)
         ]
         self._topology_params = [
             (layer, name, spec)
             for layer, name, spec in space.params()
-            if layer == TOPOLOGY_LAYER
+            if layer == TOPOLOGY_LAYER and _live(layer, name)
         ]
         self._templates = evaluable_template_names(mode)
+        # 记录被排除的惰性参数，供日志/审计核对"谁没被搜索"。
+        self._excluded_inert = [
+            name for _layer, name, _spec in space.params() if not _live(_layer, name)
+        ]
 
     # -- 观察 ---------------------------------------------------------------- #
 
@@ -142,6 +153,7 @@ class ActionSpace:
         return {
             "mode": self.mode,
             "architecture_params": [name for _, name, _ in self._architecture_params],
+            "excluded_inert_params": sorted(self._excluded_inert),
             "topology_params": [name for _, name, _ in self._topology_params],
             "templates": self._templates,
             "include_weight_array_devices": self.include_weight_array_devices,

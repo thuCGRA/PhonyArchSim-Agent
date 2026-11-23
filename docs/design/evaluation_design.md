@@ -27,7 +27,7 @@
 写成一段 + 半张表：
 
 - **运行时**：Python 3.14（≥3.11 因 langgraph 要求）
-- **流水线**：`model → architecture → topology → device → solution → commit`，
+- **流水线**：`bottleneck → architecture → topology → device → candidate → commit`，
   6 个已编译 LangGraph 智能体；每阶段以 Pydantic `structured_response` 收尾
 - **可恢复性**：父图每节点后写检查点，崩溃可 `resume_run_dir` 续跑
 - **硬件**：Core Ultra 9 275HX / 4 vCPU (WSL2) / 9.7 GiB / CPU-only / Ubuntu 26.04

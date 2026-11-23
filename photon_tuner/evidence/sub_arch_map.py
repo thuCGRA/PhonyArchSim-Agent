@@ -40,6 +40,7 @@ TOPOLOGY_PARAMS: Tuple[str, ...] = (
     "sharing_policy",
     "temporal_accum",
     "laser_distribution",
+    "weight_bank_groups",
 )
 
 # 记录映射：param -> 证据记录中的 sub_arch 路径。标量参数映射到普通路径；
@@ -49,6 +50,7 @@ SUB_ARCH_MAP: Dict[str, Any] = {
     "laser_distribution": ["core", "netlist", "laser_power_distribution"],
     "temporal_accum": ["core", "netlist", "temporal_accum_factor", "duration"],
     "sharing_policy": ["core", "netlist", "scaling_rules", ["i2", "i8"]],
+    "weight_bank_groups": ["core", "weight_bank_groups"],
     # 实例级器件类型切换：切换值是相应网表实例（i4 激光器 / i6 分束器）的
     # 器件类型。
     "laser_source": ["core", "netlist", "instances", "i4"],
@@ -60,6 +62,10 @@ SUB_ARCH_MAP: Dict[str, Any] = {
 DEVICE_READBACK_PATHS: Dict[str, Tuple[str, ...]] = {
     "core": ("core", "devices"),
     "node": ("core", "node", "devices"),
+    "mesh_core": ("core", "devices"),
+    "mesh_node": ("core", "node", "devices"),
+    "weight_array_core": ("core", "devices"),
+    "weight_array_node": ("core", "node", "devices"),
 }
 
 
@@ -75,6 +81,8 @@ def read_sub_arch_param(sub_arch: Dict[str, Any], param: str) -> Any:
     """返回 ``build_sub_arch`` 为 ``param`` 写入的值（若无则返回 None）。"""
     if param in SUB_ARCH_SCALAR_MAP:
         return _lookup(sub_arch, SUB_ARCH_SCALAR_MAP[param])
+    if param == "weight_bank_groups":
+        return _lookup(sub_arch, ("core", "weight_bank_groups"))
     if param == "laser_source":
         inst = _lookup(sub_arch, ("core", "netlist", "instances", "i4"))
         return inst[0] if isinstance(inst, (list, tuple)) and inst else None
@@ -94,7 +102,7 @@ def read_sub_arch_param(sub_arch: Dict[str, Any], param: str) -> Any:
 
 def expected_sub_arch_value(param: str, value: Any) -> Any:
     """参数候选值所期望找到的值。"""
-    if param in SUB_ARCH_SCALAR_MAP:
+    if param in SUB_ARCH_SCALAR_MAP or param == "weight_bank_groups":
         return value
     if param == "laser_source":
         return "off_chip_laser" if str(value) == "off_chip" else "on_chip_laser"
@@ -123,6 +131,8 @@ def confirm_injection(
     """返回一个已注入参数的 ``(confirmed, readback_summary)``。"""
     actual = read_sub_arch_param(sub_arch, param)
     expected = expected_sub_arch_value(param, value)
+    if param == "weight_bank_groups":
+        return _confirm_weight_bank_groups(sub_arch, actual, expected)
     if isinstance(expected, dict):
         # sharing-policy 映射同时携带交叉开关实例名 (i2/i8) 和网格实例名
         # (i_adc/i_tia) 下的 ADC/TIA 缩放规则；仅比较当前网表实际暴露的项。
@@ -139,6 +149,70 @@ def confirm_injection(
         "param": param,
         "expected": expected,
         "actual": actual,
+    }
+
+
+def _confirm_weight_bank_groups(
+    sub_arch: Dict[str, Any], actual: Any, expected: Any,
+) -> Tuple[bool, Dict[str, Any]]:
+    """Check both the declared grouping and the optical/readout netlist."""
+    core = sub_arch.get("core", {}) or {}
+    netlist = core.get("netlist", {}) or {}
+    instances = netlist.get("instances", {}) or {}
+    partition = core.get("weight_bank_partition", {}) or {}
+    wavelengths = core.get("num_wavelength")
+    group_width = core.get("group_wavelengths")
+    chain = ("off_chip_laser", "micro_comb", "node", "photodetector", "tia", "adc")
+    by_type = {
+        kind: {key for key, spec in instances.items() if spec and spec[0] == kind}
+        for kind in (*chain, "dac")
+    }
+    counts = {kind: len(keys) for kind, keys in by_type.items()}
+    edges = {
+        (source.partition("(")[0], target.partition("(")[0])
+        for source, target in (netlist.get("nets", {}) or {}).values()
+    }
+    connected = True
+    for source_kind, target_kind in (*zip(chain, chain[1:]), ("dac", "node")):
+        stage = {(src, dst) for src, dst in edges if src in by_type[source_kind]}
+        if (
+            {src for src, _ in stage} != by_type[source_kind]
+            or {dst for _, dst in stage} != by_type[target_kind]
+            or len(stage) != counts[source_kind]
+        ):
+            connected = False
+            break
+    confirmed = (
+        _eq(actual, expected)
+        and expected in (1, 2)
+        and isinstance(wavelengths, int)
+        and isinstance(group_width, int)
+        and group_width > 0
+        and group_width * expected == wavelengths
+        and all(count == expected for count in counts.values())
+        and connected
+    )
+    if confirmed and expected == 2:
+        banks = partition.get("wavelength_indices")
+        output_bits = (core.get("precision") or {}).get("out_bit")
+        confirmed = (
+            isinstance(banks, list)
+            and len(banks) == expected
+            and all(isinstance(bank, list) and len(bank) == group_width for bank in banks)
+            and {index for bank in banks for index in bank} == set(range(wavelengths))
+            and set(partition.get("partial_sum_sources") or []) == by_type["adc"]
+            and isinstance(output_bits, int)
+            and partition.get("accumulator_bits") == output_bits + 1
+        )
+    return confirmed, {
+        "param": "weight_bank_groups",
+        "expected": expected,
+        "actual": actual,
+        "num_wavelength": wavelengths,
+        "group_wavelengths": group_width,
+        "netlist_instance_counts": counts,
+        "independent_readout_paths": connected,
+        "partition": partition,
     }
 
 

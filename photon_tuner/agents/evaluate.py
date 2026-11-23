@@ -22,14 +22,14 @@ from photon_tuner.agents.outputs import EvaluateOutput
 
 # 由各阶段闸门检查输出的角色。``solution`` 额外携带编辑一致性（第 5 行）与
 # 跨层耦合行。
-GATED_ROLES = ("model", "architecture", "topology", "device", "solution")
+GATED_ROLES = ("bottleneck", "architecture", "topology", "device", "candidate")
 
 # 适用确定性结构/耦合合法性行（5.5）的角色。
-STRUCTURE_LEGALITY_ROLES = ("topology", "solution")
+STRUCTURE_LEGALITY_ROLES = ("topology", "candidate")
 
 # L4 电路级调节项，其推荐值必须是枚举候选值。``mesh_rank`` 是 mesh 的酉秩 N
 # （整数），但同样要求其值属于设计空间候选。
-_L4_PARAMS = ("sharing_policy", "temporal_accum", "laser_distribution", "mesh_rank")
+_L4_PARAMS = ("sharing_policy", "temporal_accum", "laser_distribution", "mesh_rank", "weight_bank_groups")
 
 # 指示智能体对其实可获取的证据放弃的措辞。
 _PLACEHOLDER_PHRASES = (
@@ -150,7 +150,7 @@ def _ineffective_param_fail(param: str, core_kind: Optional[str]) -> Optional[st
 # 各角色的语义检查清单。每个清单原样注入 evaluate 智能体的载荷，使评审者明确
 # 该阶段的契约。中间阶段保持轻量清单。
 STAGE_CHECKLISTS: Dict[str, List[str]] = {
-    "model": [
+    "bottleneck": [
         "Candidate layers are ranked and each rank is supported by summarized metrics / energy / area / insertion-loss evidence.",
         "An analysis base was selected (select_analysis_base / compare_search_states were used).",
         "No claim asserts a fact absent from the tool results.",
@@ -173,7 +173,7 @@ STAGE_CHECKLISTS: Dict[str, List[str]] = {
         "Area / insertion-loss / power of a variant was inspected before recommending it.",
         "No parameter value is invented beyond the library cfgs.",
     ],
-    "solution": [
+    "candidate": [
         "Actions and link_edits use only the documented tools and arguments.",
         "The proposed move is consistent with the bottleneck state and optical analysis.",
         "The cross-layer coupling is legal: template/node/device mapping, work_freq <= min(chain), and precision compatibility are respected.",
@@ -221,7 +221,7 @@ def deterministic_checks(
         checks.append(_row(4, "evidence_source", "fail", "no tool transcript: claims are unverifiable"))
 
     # 第 5 行——声明编辑 vs 实际应用的编辑（仅 solution，当编排器传入声明/应用的编辑集时）。
-    if role == "solution" and declared_edits is not None:
+    if role == "candidate" and declared_edits is not None:
         failed_names = {e.get("name") for e in (failed_edits or [])}
         declared = set(declared_edits)
         applied = set(applied_edits or [])
@@ -433,7 +433,7 @@ def topology_binding_check(
     必须提出拓扑结构编辑（``modify_topology_template`` 或对 ``core_kind`` 的
     ``modify_hardware_parameter`` 更新）。
     """
-    if role != "solution":
+    if role != "candidate":
         return _row(5.8, "topology_binding", "pass", f"not applicable to role {role!r}")
 
     ctx = context or {}

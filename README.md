@@ -1,4 +1,4 @@
-# photonic-tuner
+# OPEarch-Agent
 
 一个面向**光子**深度学习加速器的 LLM 多智能体、RAG 辅助设计空间探索（DSE）框架。
 
@@ -17,6 +17,8 @@
 - [API 密钥设置](#api-密钥设置)
 - [配置说明](#配置说明)
 - [搜索空间](#搜索空间)
+- [指标单位](#指标单位)
+- [动态调度](#动态调度)
 - [命令行参数](#命令行参数)
 - [HTTP 服务模式](#http-服务模式)
 - [对比基线](#对比基线)
@@ -29,8 +31,9 @@
 
 ## 特性
 
-- **五阶段智能体流水线**：模型层 → 架构层 → 拓扑层 → 器件层 → 求解层，各角色职责
+- **五阶段智能体流水线**：瓶颈层 → 架构层 → 拓扑层 → 器件层 → 候选层，各角色职责
   单一，顺序由 Python 宿主控制，而非由模型决定。
+- **动态工作流**：宿主根据先验成熟度、证据年龄及最近的目标改善，在 serial、pipeline 和 focus 之间逐轮选择。
 - **原生 LangGraph 运行时**：用 `create_react_agent` 构建每个智能体，`StateGraph` 编排
   父图，`SqliteSaver` 做检查点——崩溃后可从中断处恢复。
 - **证据评估门**：8 行验收协议对每个提案做一致性校验，被拒提案带着有界重试次数反馈
@@ -54,17 +57,20 @@
 ### 五阶段流水线
 
 ```
-model  ->  architecture  ->  topology  ->  device  ->  solution  ->  commit
+bottleneck  ->  architecture  ->  topology  ->  device  ->  candidate  ->  commit
 ```
 
 | 阶段 | 职责 |
 | --- | --- |
-| **model（模型层）** | 从全模型证据中找出全局最关键的瓶颈层 |
+| **bottleneck（瓶颈层）** | 从全模型证据中找出全局最关键的瓶颈层 |
 | **architecture（架构层）** | 把每个候选层的成本归因到计算 / 存储 / 通信 / 缓冲 / 器件等根因 |
 | **topology（拓扑层）** | 诊断光链路：最长光路径的插入损耗预算、光功率预算（激光输出 vs. 路径损耗 vs. 探测器灵敏度） |
 | **device（器件层）** | 挑选具体的器件库变体 |
-| **solution（求解层）** | 结合前几阶段结论与 RAG 检索到的历史案例，产出下一个合法硬件配置 |
+| **candidate（候选层）** | 结合前几阶段结论与 RAG 检索到的历史案例，产出下一个合法硬件配置（一个一致的候选设计点） |
 | **commit（提交）** | 评估新配置、更新 Pareto 前沿与最佳点，决定继续下一轮或结束 |
+
+默认使用 `--schedule-strategy rag`，在每轮开始前选择工作流。指定 `--schedule-strategy fixed --schedule-mode serial` 可固定为串行对照。详见 [动态调度设计](docs/design/adaptive_scheduling.md)。
+自适应模式下被跳过的阶段不调用模型，只把其最近一次诊断接续进上下文并标注 `evidence_age`。
 
 每个阶段都是一个已编译的 LangGraph 智能体：模型在工具循环中收集证据，最终以
 Pydantic 结构体（`structured_response`）产出结果。父 `StateGraph` 在每个节点后把
@@ -82,138 +88,80 @@ Pydantic 结构体（`structured_response`）产出结果。父 `StateGraph` 在
 - **RAG 存储**：`rag/vector_store.py` 实现历史案例的写入、双通道检索与 LangChain
   retriever 接口。
 - **检查点**：两个 SQLite 库——父图运行检查点（可恢复）与智能体子图检查点
-  （审计 / 重放）；完成的运行会清理自己的检查点，保持库体量有界。
+  （审计 / 重放）；完成的运行会清理自己的检查点记录。
 
 ---
 
 ## 环境要求与安装
 
-- **运行时解释器**：Python ≥ 3.11（`langgraph` 要求）。
-- **真实 SimPhony 解释器**：Python 3.10（`torch 1.12.1`），独立于运行时。
-
-### 一键复现环境（推荐）
-
-克隆后，`.gitignore` 会把运行所需的 `.venv-*`、`.tools/`、`configs/llm.json` 排除在
-版本库外；执行下面的脚本即可全部重建（幂等，可重复运行）：
+支持 Linux x86_64（包括 Windows 上的 WSL2 Ubuntu）。首次安装需要联网获取 Python、CPU 版 PyTorch 及固定提交的仿真依赖，并使用 GNU make 和 C++ 编译器编译 CACTI。在 Ubuntu 上可先安装系统工具：
 
 ```bash
-bash scripts/env/bootstrap.sh                  # 同时创建 agent + simulator 两个环境
-SKIP_SIMULATOR=1 bash scripts/env/bootstrap.sh # 只装 agent（快；不做 real 仿真时够用）
-DRY_RUN=1 bash scripts/env/bootstrap.sh        # 先看会执行哪些步骤，不实际改动
+sudo apt-get update
+sudo apt-get install -y git curl ca-certificates g++ make libgl1 libglib2.0-0
 ```
 
-脚本会创建：`.tools/`（uv 可执行 + uv 托管的 CPython 工具链）、`.venv-agent/`、
-`.venv-simulator/`，以及从 `configs/llm.example.json` 复制的 `configs/llm.json`。
-其中 `.tools/cache`、`.tools/mplconfig` 只是可随时清空的下载 / 字体缓存，不属于需要
-复现的环境。需要精确版本时可加 `USE_AGENT_LOCK=1`（用
-`scripts/env/requirements-agent.lock.txt`，含 CUDA torch 栈）。密钥只从
-`OPENAI_API_KEY` 环境变量读取。
-
-### 手动安装（等价步骤）
+将下面的仓库地址替换为自己的 GitHub 地址。在 Ubuntu 或 WSL 的 Bash 中运行：
 
 ```bash
-cd /path/to/epic        # 换成你的项目克隆目录
-
-# 1) 创建运行时虚拟环境
-.tools/uv venv .venv-agent --python 3.14
-
-# 2) 安装运行时依赖
-.tools/uv pip install --python .venv-agent/bin/python -r requirements.txt
-
-# 3) （可选）语义嵌入需要 sentence-transformers；默认的 hashing 嵌入器不需要
-.tools/uv pip install --python .venv-agent/bin/python "sentence-transformers>=2.7"
+git clone https://github.com/OWNER/REPOSITORY.git epic
+cd epic
+bash scripts/env/bootstrap.sh
 ```
 
-> 真实 SimPhony 环境（`.venv-simulator`）的搭建见 `scripts/env/setup_real.sh`
-> （或用上面的 `bootstrap.sh` 一次装好），运行时通过 MCP 桥访问它，不在进程内导入。
+上述命令克隆远端默认分支。若发布在其他分支，可在 `git clone` 后添加 `--branch 分支名`。后续命令都在克隆目录中执行。
+
+统一配置入口是 `scripts/env/environment.conf`。它指定两个解释器、各自的依赖清单和上游源码版本。脚本创建 `.venv-agent/`（默认 Python 3.14）和 `.venv-simulator/`（Python 3.10、CPU PyTorch 1.12.1），编译 CACTI，并从示例生成本地 `configs/llm.json`。迁移时在目标机器执行同一命令。仿真器随后通过 MCP 子进程运行。
+
+`SKIP_SIMULATOR=1` 适合只运行 Agent 侧单元测试；完整搜索需要两个环境。`USE_AGENT_LOCK=1` 使用已有的 Python 3.14 Agent 锁文件（含 CUDA 包）。默认安装使用 `requirements.txt` 和离线 hashing 嵌入器。`DRY_RUN=1` 可预览安装步骤。
 
 ---
 
 ## 快速开始
 
-冒烟测试（确定性的假 LLM + 真实 SimPhony 仿真；无网络、无 API 密钥，但需要
-`.venv-simulator`，且每次求值为分钟级）：
-
-```bash
-.venv-agent/bin/python main.py --provider mock --iterations 4
-```
-
-列出可用的工作负载：
+先列出工作负载，再用 ViT-Tiny 运行一次搜索。两条搜索命令分别使用独立的输出目录。
 
 ```bash
 .venv-agent/bin/python main.py --list-workloads
+.venv-agent/bin/python main.py --provider mock \
+    --workload vit_tiny --nn-model-factory tests.factory:build_vit_tiny \
+    --iterations 1 --output-root runs/smoke-mock
 ```
 
-指定工作负载与初始硬件：
+这一步使用本地确定性模型，初始设计和候选设计都交给真实 SimPhony 评估。运行下面的命令可用 Cloudmist 的 Flash 模型验证同一条流程。请在提示处输入自己的 Cloudmist 密钥。一次搜索迭代包含多个阶段和模型请求，按供应商用量计费。
 
 ```bash
-.venv-agent/bin/python main.py \
-    --provider mock \
-    --workload vit_tiny \
-    --initial-hardware configs/initial_hardware.json \
-    --iterations 6
+read -rsp 'Cloudmist API key: ' OPENAI_API_KEY && export OPENAI_API_KEY
+printf '\n'
+.venv-agent/bin/python main.py --provider cloudmist \
+    --base-url https://v2.cloudmist.cloud/v1 --model deepseek-v4.1-flash \
+    --workload vit_tiny --nn-model-factory tests.factory:build_vit_tiny \
+    --iterations 1 --output-root runs/smoke-cloudmist
 ```
 
-用真实大模型跑（需先设置 `OPENAI_API_KEY`）：
+首次运行时，输出位于各自的 `run_iteration_001/` 目录。检查以下文件即可核验流程。
 
-```bash
-.venv-agent/bin/python main.py \
-    --provider paratera --model DeepSeek-V4-Pro-0813 \
-    --nn-model-factory tests.factory:build_vit_tiny --workload vit_tiny
-```
+| 相对运行目录的文件 | 验收内容 |
+| --- | --- |
+| `iter_000/metrics.json` | 初始设计的仿真指标，`objective` 为有限数值 |
+| `iter_001/metrics.json` | 本轮候选设计的仿真指标，可和初始值对比 |
+| `iter_001/analysis/schedule.json` | 本轮调度决定。空历史下默认从 `serial` 开始 |
+| `iter_001/analysis/llm_trace.jsonl` | 本轮的模型交互记录。结合启动命令中的 provider 和端点核对实际调用 |
+
+一轮验收检查模型调用、候选生成和仿真评估能否走通。综合目标越小越好，单轮候选可能优于或劣于初始设计。
 
 ---
 
 ## API 密钥设置
 
-密钥只从 `OPENAI_API_KEY` 环境变量读取（LangChain 约定）：项目**不会**从
-`configs/llm.json`、命令行参数或任何凭据文件里读 key。离线冒烟测试
-（`--provider mock`）完全不需要密钥。
-
-创建该变量用辅助脚本 `configs/api_keys.py`。注意：子进程无法修改父 shell 的环境
-变量，所以脚本只**打印** `export` 语句，必须用 `eval` 包住才会真正生效。
-
-### 三种设置方式
+真实 LLM 调用从 `OPENAI_API_KEY` 环境变量读取密钥。使用 Bash 的隐藏输入可在本终端设置：
 
 ```bash
-# 1) 交互输入（推荐，key 不进入 shell 历史）
-eval "$(python3 configs/api_keys.py)"
-
-# 2) 命令行直接给（注意：key 会留在 shell 历史里）
-eval "$(python3 configs/api_keys.py --key sk-你的key)"
-
-# 3) 写死在脚本里，之后无需再输入（不推荐）
-#    打开 configs/api_keys.py，把 API_KEY 槽位改成你的 key
-eval "$(python3 configs/api_keys.py)"
+read -rsp 'API key: ' OPENAI_API_KEY && export OPENAI_API_KEY
+printf '\n'
 ```
 
-方式 1 会提示 `Paste your OPENAI_API_KEY (input hidden):`，把 key 粘进去回车即可
-（不回显）。
-
-### 其他开关
-
-```bash
-python configs/api_keys.py --check             # 查状态（脱敏）：已设置 exit 0，未设置 exit 1
-python configs/api_keys.py --masked            # 只输出脱敏值
-eval "$(python configs/api_keys.py --unset)"   # 撤销当前终端里的变量
-```
-
-### 三个注意事项
-
-1. **必须加 `eval`**：不加时脚本只把 `export OPENAI_API_KEY=...` 这行文字打在屏幕
-   上，变量并不会被设置。根本原因是子进程改不了父 shell 的环境变量。
-2. **只对当前终端有效**：新开终端或关掉窗口后变量消失，需要重新 `eval`。若想每次
-   自动生效，可把 `export OPENAI_API_KEY=...` 写进 `~/.bashrc`，但这等于把明文密钥
-   落到磁盘文件里，安全性不如每次手动设置。
-3. **必须在运行 `main.py` 之前设置**，顺序反了会报：
-
-```
-   ValueError: OPENAI_API_KEY is not set.  Create it in this terminal first:
-       eval "$(python configs/api_keys.py)"
-```
-
-> `configs/api_keys.py` 被 `.gitignore` 忽略，因为它的 `API_KEY` 槽位可能存放真实
-> 密钥。脚本需要在 bash 终端里执行（`eval` 是 POSIX shell 语法）。
+也可运行 `eval "$(python3 configs/api_keys.py)"` 进行交互设置，或用 `python3 configs/api_keys.py --check` 检查当前终端。`--provider mock` 可以在没有密钥的情况下验证完整仿真流程。
 
 ---
 
@@ -231,7 +179,7 @@ eval "$(python configs/api_keys.py --unset)"   # 撤销当前终端里的变量
 | `search_space.json` | 分层搜索空间候选集（architecture / topology / device / device_param） |
 | `workloads.json` | 工作负载定义（`vit_tiny` / `vit_small` / `vit_base`） |
 | `prompts/prompts.yaml` | 各智能体的提示词模板（YAML） |
-| `api_keys.py` | API 密钥设置辅助脚本（本地，被 gitignore） |
+| `api_keys.py` | API 密钥设置辅助脚本（隐藏输入或读取当前环境变量） |
 
 LLM 配置示例（`configs/llm.json`）：
 
@@ -244,9 +192,11 @@ LLM 配置示例（`configs/llm.json`）：
 }
 ```
 
-`provider` 内置预设：`mock`（离线假模型）、`paratera`、`paratera-flash`、
-`deepseek`、`deepseek-official`。传入其他名字时不套用预设，此时必须同时给出
-`model` 与 `base_url`（即可接入任意 OpenAI 兼容端点）。
+`provider` 内置预设：`mock`（离线假模型）、`cloudmist`、`paratera`、
+`paratera-flash`、`deepseek`、`deepseek-official`。传入其他名字时不套用预设，
+此时必须同时给出 `model` 与 `base_url`（即可接入任意 OpenAI 兼容端点）。
+
+如已将 Cloudmist 凭据保存在本地 `.env` 中，可在仓库根目录运行 `source scripts/env/activate_cloudmist.sh`，再执行“快速开始”中的 Cloudmist 命令。`.env` 供本机使用，应设置为仅本人可读写。公开仓库保留配置示例和密钥读取代码。
 
 端点解析优先级：`--base-url` / `llm.json` 的 `base_url` > `OPENAI_BASE_URL`
 环境变量 > provider 预设。
@@ -289,9 +239,83 @@ LLM 配置示例（`configs/llm.json`）：
 - `constraint`：跨参数可行性约束，例如 `work_freq <= mzm.symbol_rate`、
   `in_bit <= dac.prec`、`out_bit <= adc.prec`。
 
+### 网格规则（两条硬约束）
+
+1. **架构层的几何 / 内存 / 频率轴一律取 2 的幂，上限至少到 64。**
+   例如 `tiles ∈ {1,2,4,8,16,32,64}`、`core_height ∈ {8,16,32,64}`、
+   `work_freq ∈ {2,4,8,16,32,64}`、缓存 `∈ {512,1024,2048,4096}` KB。
+   目的是让同一拓扑族下有足够密的邻域可走，同时保持每个档位可解释（LLM 才能在
+   载荷里做有意义的比较）。精度轴保持 `{2,4,8}` bit：上界由 DAC/ADC 的 `prec`
+   与采样率链物理给定，扩到 64 bit 不可仿真。
+2. **三级缓存下界是 512 KB，而不是 64 KB。** CACTI 在当前的
+   `block_size` / associativity 下对 64/128/256 KB 直接报
+   `Invalid memory configuration provided for GLB1`。这是**后端建模边界**，不是
+   物理上不存在——把数字加回候选表只会让每次求值抛错。要搜索更小缓存，需要更换
+   存储模型或放宽 associativity 约束。
+
+> 提示：`work_freq` 的高档位在当前基线器件链下会被 `normalize` 钳到
+> `min(MZM 符号率, DAC 采样率, ADC 采样率)`。这是有意的——器件升级后同一档位即可
+> 生效，搜索空间不需要随器件而改写。
+
+### 参数可见性
+
+`searchable_parameters` 工具以**完整设计空间**为准枚举每个参数（22 个），并按当前
+拓扑族**与求值后端**标注 `effective` / `superseded_by` / `not_applicable` /
+`fixed_by_design` / `not_consumed`。它同时返回 `effect_notes`——每个轴主要移动哪个
+目标因子、以及主要陷阱。
+
+两类"看不见的轴"都曾导致搜索退化，现在都有回归测试：
+
+* **拓扑族级**：早期只枚举了 `PARAM_SCOPE` 里按族分列的 5 个参数，智能体以为架构层
+  只剩 4 根旋钮、拓扑层零可搜索轴。
+* **后端级（死轴）**：`hbm_bandwidth` 与 `precision_w_bit` 在 real 模式下**完全不参与
+  计算**（各取全部候选值得到逐位相同的 latency/energy/area），却曾被报告为可搜索。
+  它们只在解析镜像里生效——两条求值路径消费的参数集不同，仅靠域测试发现不了。
+  现在由 `MODE_INERT_PARAMS` 声明，工具与基线动作空间都据此排除。
+
 器件候选由运行时从 `<simphony-root>/configs/devices` 自动发现；`search_space.json`
 的 `candidates` 是当前器件库的快照。物理上不可实现的理想化 / 占位变体（如
 `Customized_PS`、理想 `LT_Laser`）由 `EXCLUDED_SEARCH_VARIANTS` 从可搜索面隐藏。
+
+---
+
+## 指标单位
+
+全部指标使用光电系统惯例量纲，换算集中在
+[`photon_tuner/core/units.py`](photon_tuner/core/units.py) 一处：
+
+| 键 | 单位 | mobilevit 基线 |
+|---|---|---|
+| `latency_ms` | ms | 4.77 |
+| `energy_mj`（计算+存储） | mJ | 9.53 |
+| `energy_compute_mj` / `energy_memory_mj` | mJ | 1.71 / 7.83 |
+| `area_mm2`（逐器件+节点边界框） | mm² | 77.75 |
+| `fJ_per_mac` | fJ/MAC | 926 |
+
+三项换算因子之积为 1，因此**目标函数数值在单位换算前后完全相同**。报告里同时保留
+`si_metrics`（SI 镜像）与 `units`（单位声明）供核对。
+
+两条更重要的**口径**修正（详见 [docs/design/units.md](docs/design/units.md)）：
+
+* **能耗 = 计算 + 存储**。`simu_energy` 只给计算能耗，而延时却含存储延时；实测存储
+  占总能耗 75–90%。只计计算能耗会让优化方向系统性偏移（实测会选出不同的最优设计点）。
+* **面积 = 逐器件 + 节点边界框**。厂商 `simu_area` 的过滤条件误写成
+  `if "node" not in v`（判断字典内部键而非键名），导致节点面积被重复计入、真实模式
+  面积多算约 43%。聚合层已按正确口径重算，原始值保留在 `area.vendor_total_um2`。
+
+---
+
+## 动态调度
+
+默认的 `--schedule-strategy rag` 由宿主程序读取有效案例数、案例覆盖的设计层、各层证据年龄和历史最优目标值，逐轮选择工作流。
+
+| 模式 | 默认触发条件与工作方式 |
+|---|---|
+| `serial` | 先验尚未积累 3 个有效案例或尚未覆盖架构、拓扑、器件三层时，依次执行各层，生成本轮证据。需要启动或恢复流水线但证据过期时，同样通过串行搜索刷新证据。 |
+| `pipeline` | 先验成熟且三层证据年龄均不超过 2 轮时建立流水线。各层按 0、1、2 轮的偏移使用证据。 |
+| `focus` | 至少完成过一轮流水线，且最近 10 轮的历史最优值每轮改善均不超过 10% 时，集中搜索一个设计层。出现超过阈值的改善后重新判断流水线条件。 |
+
+固定工作流使用 `--schedule-strategy fixed --schedule-mode serial|pipeline|focus`。详细判据见 [调度实现](photon_tuner/runtime/scheduler.py)。
 
 ---
 
@@ -353,7 +377,7 @@ usage: photon-tuner [--initial-hardware FILE] [--search-space FILE]
 - `--llm-config FILE`：LLM 配置 JSON（provider/model/base_url 等），默认
   `configs/llm.json`。API 密钥不在此文件，始终取自 `OPENAI_API_KEY`。
   示例：`main.py --llm-config configs/llm.json`
-- `--provider NAME`：LLM provider 覆盖（`mock` / `paratera` / `paratera-flash` /
+- `--provider NAME`：LLM provider 覆盖（`mock` / `cloudmist` / `paratera` / `paratera-flash` /
   `deepseek` / `deepseek-official`，或自带 `model` + `base_url` 的 OpenAI 兼容端点）。
   示例：`main.py --provider mock`
 - `--model NAME`：LLM 模型名覆盖。
@@ -370,7 +394,10 @@ usage: photon-tuner [--initial-hardware FILE] [--search-space FILE]
   示例：`main.py --state-strategy next`
 - `--search-strategy {joint,sequential}`：联合搜索方式——`joint`（每轮所有层一起）
   或 `sequential`（架构 → 拓扑 → 器件轮转）。默认 `joint`。
-  示例：`main.py --search-strategy sequential`
+  固定轮转示例：`main.py --schedule-strategy fixed --search-strategy sequential`
+- `--schedule-strategy {rag,fixed}`：默认通过 `rag` 动态调度，`fixed` 用于固定工作流对照。
+- `--schedule-mode {serial,pipeline,focus}`：指定固定工作流的运行模式。
+  示例：`main.py --schedule-strategy fixed --schedule-mode pipeline`
 - `--topology-sweep`：预先评估每个可评估的电路模板（`core_kind`）并归档到 Pareto
   前沿。
   示例：`main.py --topology-sweep`
@@ -417,7 +444,7 @@ run_iteration_NNN/
 ├── iter_000/                 # 基线点（未改动的初始硬件）
 │   ├── hardware.json         # 该轮硬件配置
 │   ├── workload.json         # 工作负载
-│   ├── metrics.json          # latency_s / energy_pj / area_um2 / objective
+│   ├── metrics.json          # latency_ms / energy_mj / area_mm2 / objective
 │   ├── report.json           # SimPhony 原始报告
 │   ├── area_detail.json  energy_detail.json  insertion_loss.json  memory.json
 │   └── analysis/             # 各阶段智能体产出
@@ -511,6 +538,8 @@ pip install fastapi uvicorn
 | `scripts/dev/smoke_tune.py` | 端到端 DSE 冒烟（1 次迭代，临时目录） |
 | `scripts/experiments/sweep.py` | 批量顺序扫描（workloads × N runs），结果落 `runs/sweep/` |
 | `scripts/experiments/verify_search_space.py` | 搜索空间有效性验证（单变量消融 → `data/evidence.db`） |
+| `scripts/analysis/scheduler_sensitivity.py` | 调度阈值敏感性：用落盘观测量离线回放模式决策（不消耗评估），并自检是否逐轮复现真实轨迹 |
+| `scripts/experiments/phel_experiments.py` | 两组对比实验（等预算 / 同目标收敛），每组产出一个文件夹内的「数据 + 大模型运行记录」两个文件 |
 | `scripts/experiments/ablation_evidence.py` | 确定性离线消融证据（验证各贡献点） |
 | `scripts/analysis/analyze_convergence.py` | 逐迭代收敛曲线与硬件差异 |
 | `scripts/analysis/analyze_sweep.py` | 扫描结果统计、跨 run 确定性检查、LLM vs 回退归因 |
@@ -523,18 +552,18 @@ pip install fastapi uvicorn
 单一入口；当 `langgraph` 可导入时自动并入 `tests/deep/`：
 
 ```bash
-.venv-agent/bin/python tests/run_tests.py    # 全量：领域 + deep（353 项）
+.venv-agent/bin/python tests/run_tests.py    # 领域测试和 deep 测试
 python3 tests/run_tests.py                   # 仅领域测试（缺依赖时自动跳过 deep）
 ```
 
-当前全量 **353 项**（领域 235 + deep 118）。离线端到端测试依赖
+离线端到端测试依赖
 `FakeToolCallingModel`，结果确定可复现。
 
 > 领域测试除标准库与 PyYAML 外，部分用例还会导入 `pydantic` / `tenacity`
 > （经 `photon_tuner.agents.evaluate` 与 `photon_tuner.llm.model`）。若用裸
 > `python3` 跑出现 `ModuleNotFoundError`，直接改用 `.venv-agent/bin/python`。
 
-CI（`.github/workflows/ci.yml`）在 Python 3.11 / 3.12 上执行
+CI 的迁移验收任务通过安装脚本重建双环境，并使用 mock LLM 运行一轮真实 SimPhony 仿真。单元测试任务在 Python 3.11 / 3.12 上执行
 `coverage run --source=photon_tuner tests/run_tests.py`，配置见 `.coveragerc`。
 
 ---
@@ -573,6 +602,7 @@ photon_tuner/
     provenance.py       #   器件来源审计与 DOI 校验
     schemas.py          #   评估 / 分析结果数据模型
     search_space.py     #   搜索空间唯一实现：规格、可行性校验、自适应细化、硬件操作
+    units.py            #   规范单位换算（ms / mJ / mm² / fJ·MAC⁻¹），唯一换算点
     topology.py         #   拓扑规范应用（sharing / temporal / laser）
     topology_space.py   #   拓扑模板、耦合校验、候选过滤（core_kind/node_kind 唯一来源）
     topology_spec.py    #   拓扑节点 / 图规范
@@ -592,6 +622,7 @@ photon_tuner/
   runtime/              # 编排运行时
     orchestrator.py     #   DeepAgentTuner 编排器（五阶段循环、门控、检查点清理）
     payloads.py         #   类型化阶段负载
+    scheduler.py        #   RAG 驱动的模式调度（纯函数：观测信号 → 模式/聚焦层/证据偏移）
     state.py            #   迭代上下文、快照 / 恢复、schema 版本
   simulators/           # 仿真层
     analytic.py         #   解析求值镜像（仅离线测试 / 实验直接调用）

@@ -47,9 +47,9 @@ class TestWeightArrayEvaluation(unittest.TestCase):
             with self.subTest(kind=kind):
                 report = evaluate(_wa_hw(kind), SIM_ROOT)
                 m = report["metrics"]
-                self.assertTrue(m["energy_pj"] > 0)
-                self.assertTrue(m["area_um2"] > 0)
-                self.assertTrue(m["latency_s"] > 0)
+                self.assertTrue(m["energy_mj"] > 0)
+                self.assertTrue(m["area_mm2"] > 0)
+                self.assertTrue(m["latency_ms"] > 0)
 
     def test_parallel_single_pass_il_is_low(self):
         # 并行权重阵列：光一次通过一个权重单元，核心 IL ≈ 激光 + 权重 + PD，
@@ -150,7 +150,7 @@ class TestTempoIsNotASeparateTopology(unittest.TestCase):
             hw["arch"]["topology"]["temporal_accum"] = mode
             metrics[mode] = evaluate(hw, SIM_ROOT)["metrics"]
 
-        energies = {m: v["energy_pj"] for m, v in metrics.items()}
+        energies = {m: v["energy_mj"] for m, v in metrics.items()}
         # 三档给出三种不同能耗 → 该自由度在 dptc_crossbar 上确实可用。
         self.assertEqual(len({round(v, 6) for v in energies.values()}), 3, energies)
         # 时域累加越深，复用越多，能耗越低。
@@ -158,10 +158,10 @@ class TestTempoIsNotASeparateTopology(unittest.TestCase):
         self.assertGreater(energies["default"], energies["deep"])
         # 面积/延迟与累加深度无关（它只改器件占用时间，不改结构）。
         self.assertEqual(
-            len({round(v["area_um2"], 6) for v in metrics.values()}), 1
+            len({round(v["area_mm2"], 6) for v in metrics.values()}), 1
         )
         self.assertEqual(
-            len({round(v["latency_s"], 15) for v in metrics.values()}), 1
+            len({round(v["latency_ms"], 15) for v in metrics.values()}), 1
         )
         # 并且它在该拓扑下是"生效"参数（不会被 PARAM_SCOPE 折叠掉）。
         self.assertNotEqual(len(ds.effective_candidates("temporal_accum", base)), 0)

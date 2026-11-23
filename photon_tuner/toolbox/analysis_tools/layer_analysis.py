@@ -1,6 +1,6 @@
 """分析工具箱的层排名 / 算子组 / 层详情读取工具。
 
-使用者：layer_level、model_level、solution。
+使用者：bottleneck（全局瓶颈）、architecture、candidate。
 """
 
 from __future__ import annotations
@@ -14,6 +14,8 @@ from photon_tuner.toolbox.common_tool._report_utils import (
     _flatten_memory,
     _flatten_memory_energy,
     _load_report,
+    _energy_split_mj,
+    _memory_energy_by_level,
     _rank_layers,
 )
 from photon_tuner.toolbox.common_tool.context import ToolContext
@@ -23,7 +25,21 @@ def summarize_layer_ranks(toolbox: Any, context: ToolContext, arguments: Dict[st
     report = _load_report(context)
     ranks = _rank_layers(report, context)
     top = int(arguments.get("top_layers", len(ranks)))
-    return ToolResult("summarize_layer_ranks", {"layers": ranks[:top]})
+    payload: Dict[str, Any] = {"layers": ranks[:top]}
+    # 逐层能耗**只覆盖计算**；存储能耗按层级给出。两者合计才是目标函数里
+    # 的 energy。不说明这一点，智能体会把"逐层能耗之和"当成全部能耗。
+    split = _energy_split_mj(report)
+    if split["total"] > 0:
+        payload["energy_scope"] = {
+            "note": "per-layer energy covers compute devices only; storage energy is "
+                    "reported per memory level below. The objective uses compute+memory.",
+            "compute_mj": split["compute"],
+            "memory_mj": split["memory"],
+            "total_mj": split["total"],
+            "memory_share": split["memory"] / split["total"],
+            "memory_by_level_mj": _memory_energy_by_level(report),
+        }
+    return ToolResult("summarize_layer_ranks", payload)
 
 
 def summarize_operator_groups(toolbox: Any, context: ToolContext, arguments: Dict[str, Any]) -> ToolResult:
@@ -42,25 +58,25 @@ def summarize_operator_groups(toolbox: Any, context: ToolContext, arguments: Dic
             "group": item["group"],
             "layer_count": 0,
             "switching_cycles": 0.0,
-            "energy_pj": 0.0,
-            "area_share_um2": 0.0,
-            "memory_latency_s": 0.0,
+            "energy_mj": 0.0,
+            "area_share_mm2": 0.0,
+            "memory_latency_ms": 0.0,
             "energy_source": item["energy_source"],
             "top_layers": [],
         })
         bucket["layer_count"] += 1
         bucket["switching_cycles"] += item["switching_cycles"]
-        bucket["energy_pj"] += item["energy_pj"]
-        bucket["area_share_um2"] += item["area_share_um2"]
-        bucket["memory_latency_s"] += item["memory_latency_s"]
+        bucket["energy_mj"] += item["energy_mj"]
+        bucket["area_share_mm2"] += item["area_share_mm2"]
+        bucket["memory_latency_ms"] += item["memory_latency_ms"]
         if len(bucket["top_layers"]) < top_per_group:
             bucket["top_layers"].append(item["layer_name"])
 
-    total_energy = sum(g["energy_pj"] for g in groups.values()) or 1.0
+    total_energy = sum(g["energy_mj"] for g in groups.values()) or 1.0
     total_cycles = sum(g["switching_cycles"] for g in groups.values()) or 1.0
-    ordered = sorted(groups.values(), key=lambda g: g["energy_pj"], reverse=True)
+    ordered = sorted(groups.values(), key=lambda g: g["energy_mj"], reverse=True)
     for bucket in ordered:
-        bucket["energy_share"] = bucket["energy_pj"] / total_energy
+        bucket["energy_share"] = bucket["energy_mj"] / total_energy
         bucket["cycle_share"] = bucket["switching_cycles"] / total_cycles
     return ToolResult("summarize_operator_groups", {"groups": ordered})
 

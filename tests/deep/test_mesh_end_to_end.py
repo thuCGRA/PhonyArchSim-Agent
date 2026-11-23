@@ -35,7 +35,7 @@ class MeshProposingModel(FakeToolCallingModel):
         **kwargs: Any,
     ) -> ChatResult:
         task = self._detect_task_override(messages)
-        if task == "solution_generation":
+        if task == "candidate_generation":
             fields = {
                 "strategy": "switch to a Clements MZI mesh to shrink area at equal MACs",
                 "actions": [
@@ -92,7 +92,7 @@ class AtomicTemplateModel(FakeToolCallingModel):
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
         task = self._detect_task_override(messages)
-        if task == "solution_generation":
+        if task == "candidate_generation":
             fields = {
                 "strategy": "switch to Clements mesh with the atomic template tool",
                 "actions": [
@@ -130,7 +130,7 @@ class TestMeshEndToEnd(unittest.TestCase):
             summary = tuner.tune(initial_hardware=hardware, max_iterations=1)
 
             # 提案持久化了拓扑切换。
-            proposal = read_json(Path(summary["run_dir"]) / "iter_001" / "analysis" / "solution_proposal.json")
+            proposal = read_json(Path(summary["run_dir"]) / "iter_001" / "analysis" / "candidate_proposal.json")
             self.assertIn("modify_hardware_parameter", proposal["actions"])
 
             # 被评估的硬件确实把 core_kind 切换到了网格。
@@ -140,8 +140,8 @@ class TestMeshEndToEnd(unittest.TestCase):
 
             # 被评估的设计点是网格（core_kind 在 normalize 后保留），且其指标被记录。
             m = read_json(Path(summary["run_dir"]) / "iter_001" / "metrics.json")
-            self.assertGreater(m["energy_pj"], 0)
-            self.assertGreater(m["area_um2"], 0)
+            self.assertGreater(m["energy_mj"], 0)
+            self.assertGreater(m["area_mm2"], 0)
             self.assertGreater(m["core_insertion_loss"], 8.0)  # 2.0 laser + depth*MZI_IL
 
             # 吞吐归一化后 mesh 被初始 crossbar 支配（IL/能耗高、面积效率不占优），

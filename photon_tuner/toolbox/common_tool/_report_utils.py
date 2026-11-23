@@ -79,8 +79,8 @@ def _rank_layers(report: Dict[str, Any], context: ToolContext) -> List[Dict[str,
     native_energy = _flatten_memory_energy(report.get("energy", {}).get("by_layer", {}))
 
     metrics = report.get("metrics", {})
-    total_energy = float(metrics.get("energy_pj", 1.0))
-    total_area = float(metrics.get("area_um2", 1.0))
+    total_energy = float(metrics.get("energy_mj", 1.0))
+    total_area = float(metrics.get("area_mm2", 1.0))
     # 逐层延迟估算需要工作频率 (GHz)；从已评估的硬件中读取，以便反映步进
     # 频率的变化。
     freq = _work_freq_g_hz(report, context)
@@ -92,29 +92,89 @@ def _rank_layers(report: Dict[str, Any], context: ToolContext) -> List[Dict[str,
     for name, cycle in cycles.items():
         share = switching_cycles[name] / total_switching
         if name in native_energy:
-            energy_pj = float(native_energy[name])
+            # 原生 ``energy.by_layer`` 是 SimPhony 的 pJ 明细；``metrics`` 是规范
+            # 单位 mJ。两者混用会让排序把 pJ 的数当成 mJ（差 1e9 倍），瓶颈定位
+            # 直接错乱——这里显式换算到 mJ。
+            energy_mj = float(native_energy[name]) * 1e-9
             energy_source = "simulated"
         else:
-            energy_pj = total_energy * share
+            energy_mj = total_energy * share
             energy_source = "estimated"
         ranks.append({
             "layer_name": name,
             "group": layer_group(name),
             "cycles": cycle,
             "switching_cycles": switching_cycles[name],
-            "latency_s": switching_cycles[name] / freq * 1e-9,
-            "memory_latency_s": _memory_latency_value(memory_latency.get(name)),
-            "energy_pj": energy_pj,
+            # cycles / freq[GHz] = ns；ns -> ms 乘 1e-6。
+            "latency_ms": switching_cycles[name] / freq * 1e-6,
+            # 报告 memory.latency 单位为 s -> ms。
+            "memory_latency_ms": _memory_latency_value(memory_latency.get(name)) * 1e3,
+            "energy_mj": energy_mj,
             "energy_source": energy_source,
-            # 为更早的工具调用方保留的向后兼容别名。
-            "energy_share_pj": energy_pj,
-            "area_share_um2": total_area * share,
-            "memory_energy_pj": memory_energy.get(name, 0.0),
+            "area_share_mm2": total_area * share,
         })
-    ranks.sort(key=lambda item: item["energy_pj"], reverse=True)
+    ranks.sort(key=lambda item: item["energy_mj"], reverse=True)
     for index, item in enumerate(ranks):
         item["layer_id"] = index
     return ranks
+
+
+def top_layer_energy_share(report: Dict[str, Any], context: ToolContext) -> Optional[float]:
+    """顶层算子在**逐层能耗**中的占比（0–1）；无法计算时返回 ``None``。
+
+    这是"瓶颈有多集中"的语义化度量：0.35 表示最贵的层只占三成、其余七成分散在别的层里。
+    相比之下用 ``1 / 层数`` 作代理没有量程（78 层时恒为 0.013），既无法设阈值也无法解释。
+
+    ``None``（而不是 0.0）是刻意的：调用方必须区分"测得集中度为零"与"没有报告可算"。
+    """
+    try:
+        ranks = _rank_layers(report, context)
+    except Exception:  # noqa: BLE001 — 缺报告/字段时不应让调度崩掉
+        return None
+    if not ranks:
+        return None
+    energies = [float(row.get("energy_mj", 0.0) or 0.0) for row in ranks]
+    total = sum(energies)
+    if total <= 0:
+        return None
+    return max(energies) / total
+
+
+def _memory_energy_by_level(report: Dict[str, Any]) -> Dict[str, float]:
+    """把 ``memory.energy``（pJ，按存储层级组织）换算成 mJ。
+
+    注意：它是 ``{sub_arch: {HBM|GLB2|GLB1|RF: pJ}}``，**按存储层级**而非按
+    NN 层组织。早先的逐层 ``memory_energy_mj`` 用层名去查这张表，永远查不到，
+    于是恒为 0——智能体会据此认为存储能耗为零，而实际它才是能耗主体。
+    """
+    levels: Dict[str, float] = {}
+    for sub_arch in (report.get("memory", {}).get("energy", {}) or {}).values():
+        if not isinstance(sub_arch, dict):
+            continue
+        for level, value in sub_arch.items():
+            try:
+                levels[str(level)] = levels.get(str(level), 0.0) + float(value) * 1e-9
+            except (TypeError, ValueError):
+                continue
+    return dict(sorted(levels.items(), key=lambda kv: kv[1], reverse=True))
+
+
+def _energy_split_mj(report: Dict[str, Any]) -> Dict[str, float]:
+    """返回 ``{compute, memory, total}``（mJ），供工具在载荷里显式声明口径。"""
+    metrics = report.get("metrics", {}) or {}
+    try:
+        compute = float(metrics.get("energy_compute_mj", metrics.get("energy_mj", 0.0)))
+        total = float(metrics.get("energy_mj", 0.0))
+    except (TypeError, ValueError):
+        compute, total = 0.0, 0.0
+    if "energy_memory_mj" in metrics:
+        memory = float(metrics["energy_memory_mj"])
+    else:
+        # 旧报告（能耗口径修正之前）没有这个字段：从 memory.energy 重新求，
+        # 而不是静默当成 0——把"存储能耗为零"当成事实正是早先的 bug。
+        memory = sum(_memory_energy_by_level(report).values())
+        total = compute + memory
+    return {"compute": compute, "memory": memory, "total": total}
 
 
 def _work_freq_g_hz(report: Dict[str, Any], context: ToolContext) -> float:

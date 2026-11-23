@@ -25,6 +25,8 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from photon_tuner.core.search_space import materialize_hardware
+from photon_tuner.core.topology_space import validate_weight_bank_groups
+from photon_tuner.core.units import to_display_metrics
 from photon_tuner.core.workload import (
     DEFAULT_MINIBLOCK,
     build_workload,
@@ -998,6 +1000,7 @@ def evaluate(
             ``default`` 项。
     """
     hardware = materialize_hardware(hardware)
+    validate_weight_bank_groups(hardware, mode="analytic")
     catalog = device_catalog or load_device_catalog(f"{simphony_root}/configs/devices")
     core_kind = str((hardware.get("arch", {}).get("topology", {}) or {}).get("core_kind", "dptc_crossbar"))
     if core_kind.startswith("mzi_mesh_"):
@@ -1054,7 +1057,12 @@ def evaluate(
     # 并行权重阵列是单输出向量（器件少但吞吐低），按吞吐归一后与矩阵阵列可比。
     macs = total_macs(cycles)
     throughput = macs / total_latency if total_latency > 0 else 0.0
-    pj_per_mac = total_energy / macs if macs else total_energy
+    # 每 MAC 能耗必须与 ``energy_mj``（计算 + 存储）同源，否则同一个报告块里
+    # 的 ``energy_mj`` 与 ``fJ_per_mac`` 会描述不同的能耗范围。
+    total_energy_for_efficiency = total_energy + total_memory_energy
+    pj_per_mac = (
+        total_energy_for_efficiency / macs if macs else total_energy_for_efficiency
+    )
     area_per_throughput = total_area / throughput if throughput > 0 else total_area
 
     report = {
@@ -1077,6 +1085,19 @@ def evaluate(
         "area": {
             "by_device": {arch_key: area_devices},
             "by_chip_type": {arch_key: chip_area},
+            # 与 real 路径保持同一 schema：显式拆出「逐器件面积 + 节点边界框」，
+            # 并保留厂商口径的对照值。解析镜像的总量本来就是 device + bbox，
+            # 因此 vendor_total 与 total 相等。
+            "composition": {
+                arch_key: {
+                    "device_area_um2": sum(
+                        v["total_area"] for k, v in area_devices.items() if "node" not in k
+                    ),
+                    "node_bbox_um2": float(area_devices.get("node", {}).get("total_area", 0.0)),
+                    "total_um2": total_area,
+                }
+            },
+            "vendor_total_um2": {arch_key: total_area},
             "total": {arch_key: total_area},
         },
         "latency": {
@@ -1089,14 +1110,34 @@ def evaluate(
             "energy": {arch_key: memory_energy},
             "spec": memory_spec,
         },
-        "metrics": {
-            "energy_pj": total_energy,
+        # 与 real 路径一致：明细块保留 SI（pJ / um^2 / s），``metrics`` 块给规范
+        # 单位，``si_metrics`` 保留换算前的镜像以便核对。
+        # 与 real 路径同口径：总能耗 = 计算 + 存储，并保留两个分量。
+        "metrics": to_display_metrics({
+            "energy_pj": total_energy + total_memory_energy,
+            "energy_compute_pj": total_energy,
+            "energy_memory_pj": total_memory_energy,
             "area_um2": total_area,
             "latency_s": total_latency,
             "total_macs": macs,
             "throughput_mac_per_s": throughput,
             "pJ_per_mac": pj_per_mac,
             "area_um2_per_mac_per_s": area_per_throughput,
+        }),
+        "si_metrics": {
+            "latency_s": total_latency,
+            "energy_pj": total_energy + total_memory_energy,
+            "energy_compute_pj": total_energy,
+            "energy_memory_pj": total_memory_energy,
+            "area_um2": total_area,
+        },
+        "units": {
+            "metrics": {"latency_ms": "ms", "energy_mj": "mJ", "area_mm2": "mm^2",
+                        "fJ_per_mac": "fJ/MAC"},
+            "insertion_loss": "dB",
+            "energy": "pJ",
+            "area": "um^2",
+            "latency": "s",
         },
     }
     return report

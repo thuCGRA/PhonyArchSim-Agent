@@ -22,22 +22,22 @@ from photon_tuner.agents.outputs import (
     ArchitectureOutput,
     DeviceOutput,
     EvaluateOutput,
-    ModelOutput,
-    SolutionOutput,
+    BottleneckOutput,
+    CandidateOutput,
     TopologyOutput,
 )
 from photon_tuner.agents.prompts import (
     ARCHITECTURE_PROMPT,
     DEVICE_PROMPT,
     EVALUATE_PROMPT,
-    MODEL_PROMPT,
-    SOLUTION_PROMPT,
+    BOTTLENECK_PROMPT,
+    CANDIDATE_PROMPT,
     TOPOLOGY_PROMPT,
 )
 
 # 各角色的工具白名单（按名称）。光学层面划分为 topology 与 device；
 # solution 智能体只读，仅提出由编排器确定性应用的编辑。
-MODEL_TOOLS = [
+BOTTLENECK_TOOLS = [
     "summarize_hardware_config",
     "summarize_metrics",
     "summarize_energy_breakdown",
@@ -47,6 +47,17 @@ MODEL_TOOLS = [
     "summarize_operator_groups",
     "compare_search_states",
     "select_analysis_base",
+    "describe_metric_units",
+    "summarize_workload_features",
+    "summarize_pareto_frontier",
+    "summarize_schedule_signals",
+    "assess_memory_energy_dominance",
+    "identify_latency_hotspot",
+    "identify_dominant_energy_device",
+    "identify_dominant_area_device",
+    "choose_analysis_baseline",
+    "assess_objective_improvement",
+    "assess_objective_convergence",
 ]
 
 ARCHITECTURE_TOOLS = [
@@ -67,6 +78,16 @@ ARCHITECTURE_TOOLS = [
     # 部分架构参数在非 crossbar 拓扑下不生效（被 mesh_rank 取代 / 物理固定）。
     # 推荐前先查，避免提出改了等于没改的编辑。
     "searchable_parameters",
+    "summarize_search_space",
+    "summarize_workload_features",
+    "summarize_pareto_frontier",
+    "assess_memory_energy_dominance",
+    "identify_latency_hotspot",
+    "identify_dominant_energy_device",
+    "identify_dominant_area_device",
+    "choose_analysis_baseline",
+    "assess_objective_improvement",
+    "assess_parameter_effectiveness",
 ]
 
 TOPOLOGY_TOOLS = [
@@ -88,6 +109,11 @@ TOPOLOGY_TOOLS = [
     # 切换模板会改变哪些参数生效（如网格下 mesh_rank 接管矩阵维度），
     # 推荐前需据此核对。
     "searchable_parameters",
+    "summarize_device_provenance",
+    "assess_optical_power_budget",
+    "identify_dominant_optical_loss",
+    "assess_parameter_effectiveness",
+    "assess_candidate_legality",
 ]
 
 DEVICE_TOOLS = [
@@ -97,12 +123,17 @@ DEVICE_TOOLS = [
     "summarize_device_energy_breakdown",
     "summarize_device_area_breakdown",
     "summarize_insertion_loss_detail",
+    "summarize_device_provenance",
+    "identify_dominant_energy_device",
+    "identify_dominant_area_device",
+    "identify_dominant_optical_loss",
+    "select_device_frontier_candidate",
 ]
 
 # solution 智能体只读，主要依据载荷中的上游结论提出 actions / link_edits；
 # 它仅需最小工具面在提出前复核当前状态。保持精简可避免工具循环，编排器确定性
 # 应用所提编辑（并对单个编辑的失败做容错处理）。
-SOLUTION_TOOLS = [
+CANDIDATE_TOOLS = [
     "searchable_parameters",
     "summarize_hardware_config",
     "summarize_metrics",
@@ -110,6 +141,17 @@ SOLUTION_TOOLS = [
     "list_topology_templates",
     "inspect_topology_template",
     "validate_coupling",
+    "summarize_design_identity",
+    "retrieve_similar_cases",
+    "summarize_case_memory",
+    "summarize_pareto_frontier",
+    "assess_objective_improvement",
+    "assess_parameter_effectiveness",
+    "assess_candidate_legality",
+    "assess_design_novelty",
+    "assess_case_reusability",
+    "assess_memory_maturity",
+    "assess_objective_convergence",
 ]
 
 # evaluate 智能体严格只读：用真实证据核验单个上游阶段的输出，因此拥有宽泛的
@@ -135,7 +177,49 @@ EVALUATE_TOOLS = [
     "inspect_device_config",
     "compare_search_states",
     "select_analysis_base",
+    "summarize_search_space",
+    "describe_metric_units",
+    "summarize_workload_features",
+    "summarize_device_provenance",
+    "preview_evaluation_schema",
+    "summarize_design_identity",
+    "retrieve_similar_cases",
+    "summarize_case_memory",
+    "summarize_pareto_frontier",
+    "summarize_schedule_signals",
+    "assess_memory_energy_dominance",
+    "identify_latency_hotspot",
+    "identify_dominant_energy_device",
+    "identify_dominant_area_device",
+    "assess_optical_power_budget",
+    "identify_dominant_optical_loss",
+    "choose_analysis_baseline",
+    "assess_objective_improvement",
+    "select_device_frontier_candidate",
+    "assess_parameter_effectiveness",
+    "assess_candidate_legality",
+    "assess_design_novelty",
+    "assess_case_reusability",
+    "assess_memory_maturity",
+    "assess_objective_convergence",
 ]
+
+# Single-agent ablation: one generalist policy replaces all role-specific
+# personas.  Keep each stage's original tool interface so the ablation changes
+# agent specialization only, rather than confounding it with a much larger
+# prompt/tool surface.  Separate response-schema adapters are still
+# compiled because LangGraph fixes ``response_format`` at graph construction;
+# they are adapters for the same generalist agent, not specialized roles.
+GENERALIST_PROMPT = """
+You are a single generalist agent for photonic-accelerator design-space
+exploration.  There are no specialized bottleneck, architecture, topology,
+device, candidate, or evaluator personas.  For every request, inspect the
+provided payload, use any available read-only tool needed to ground the answer,
+and return exactly the structured schema requested by the caller.  Preserve
+explicit architecture/topology/device fields when the schema contains them,
+but reason as one unified agent.  Never invent simulator evidence, device
+variants, parameter names, or legal values.
+""".strip()
 
 
 def _select(all_tools: Dict[str, BaseTool], names: List[str]) -> List[BaseTool]:
@@ -177,8 +261,8 @@ def _build(
     )
 
 
-def build_model_agent(model, all_tools, checkpointer=None):
-    return _build(model, _select(all_tools, MODEL_TOOLS), MODEL_PROMPT, ModelOutput, "model_agent", checkpointer)
+def build_bottleneck_agent(model, all_tools, checkpointer=None):
+    return _build(model, _select(all_tools, BOTTLENECK_TOOLS), BOTTLENECK_PROMPT, BottleneckOutput, "bottleneck_agent", checkpointer)
 
 
 def build_architecture_agent(model, all_tools, checkpointer=None):
@@ -193,9 +277,32 @@ def build_device_agent(model, all_tools, checkpointer=None):
     return _build(model, _select(all_tools, DEVICE_TOOLS), DEVICE_PROMPT, DeviceOutput, "device_agent", checkpointer)
 
 
-def build_solution_agent(model, all_tools, checkpointer=None):
-    return _build(model, _select(all_tools, SOLUTION_TOOLS), SOLUTION_PROMPT, SolutionOutput, "solution_agent", checkpointer)
+def build_candidate_agent(model, all_tools, checkpointer=None):
+    return _build(model, _select(all_tools, CANDIDATE_TOOLS), CANDIDATE_PROMPT, CandidateOutput, "candidate_agent", checkpointer)
 
 
 def build_evaluate_agent(model, all_tools, checkpointer=None):
     return _build(model, _select(all_tools, EVALUATE_TOOLS), EVALUATE_PROMPT, EvaluateOutput, "evaluate_agent", checkpointer)
+
+
+def build_generalist_agent_adapters(model, all_tools, checkpointer=None):
+    """Build schema adapters for the single-generalist-agent ablation."""
+    specs = {
+        "bottleneck": (BottleneckOutput, BOTTLENECK_TOOLS),
+        "architecture": (ArchitectureOutput, ARCHITECTURE_TOOLS),
+        "topology": (TopologyOutput, TOPOLOGY_TOOLS),
+        "device": (DeviceOutput, DEVICE_TOOLS),
+        "candidate": (CandidateOutput, CANDIDATE_TOOLS),
+        "evaluate": (EvaluateOutput, EVALUATE_TOOLS),
+    }
+    return {
+        role: _build(
+            model,
+            _select(all_tools, tool_names),
+            GENERALIST_PROMPT,
+            output_model,
+            f"single_generalist_{role}_adapter",
+            checkpointer,
+        )
+        for role, (output_model, tool_names) in specs.items()
+    }

@@ -107,7 +107,7 @@ class TestEvidenceStore(unittest.TestCase):
             "after_objective": 3.0,
             "memory_energy_delta_pct": 0.0,
             "metric_deltas": {"latency_pct": -50.0, "objective_pct": -50.0},
-            "affected_metrics": ["latency_s", "objective"],
+            "affected_metrics": ["latency_ms", "objective"],
             "is_null": 0,
             "trustworthy": 1,
         }

@@ -1,5 +1,6 @@
 """可加载工作负载层（analytic 模式下的真实模型）的测试。"""
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -172,7 +173,22 @@ class TestRealWorkloadEvaluation(unittest.TestCase):
         report = evaluate(self.hardware, ROOT)
         self.assertEqual(report["workload"]["name"], "vit_tiny")
         # 默认 node 相移器为 MEMS_PS（P_pi 已按 10 nW 级订正）。
-        self.assertAlmostEqual(report["metrics"]["energy_pj"], 115562731.63852626, places=3)
+        # 回归锚点固定用 SI 镜像：规范单位的 energy_mj 是该值的 1e-9 倍，
+        # 用 SI 值可以钉住原始物理量而不受展示单位影响。
+        # 锚点随架构搜索空间改为 2 的幂网格而更新（基线 16x16x16 @4 GHz / 512 KB）。
+        # 旧锚点 1.1556e8 pJ，新锚点 9.8991e7 pJ：同一量级、同向可解释
+        # （波长 16→16 不变、频率 5→4 GHz 与缓存 485→512 KB 共同作用）。
+        # 回归锚点钉在**计算能耗**上：它是 SimPhony 的物理输出，不随"是否把
+        # 存储能耗计入目标"这一建模选择而变。总能耗另由下面的分量关系约束。
+        self.assertAlmostEqual(
+            report["si_metrics"]["energy_compute_pj"], 98990574.31838855, places=3
+        )
+        # 总能耗必须等于计算 + 存储（口径自洽，且存储分量必须被真正计入）。
+        si = report["si_metrics"]
+        self.assertAlmostEqual(
+            si["energy_pj"], si["energy_compute_pj"] + si["energy_memory_pj"], places=3
+        )
+        self.assertGreater(si["energy_memory_pj"], 0.0)
 
     def test_vit_workload_produces_varied_layer_profile(self):
         report = evaluate(self.hardware, ROOT, workload_name="vit_base")
@@ -237,8 +253,8 @@ class TestRealWorkloadEvaluation(unittest.TestCase):
         self.assertNotEqual(a["layers.0.attn.qk"], b["layers.0.attn.qk"])
 
         # 且整设计能量随之变化。
-        ea = evaluate(narrow, ROOT, workload_name="vit_base")["metrics"]["energy_pj"]
-        eb = evaluate(wide, ROOT, workload_name="vit_base")["metrics"]["energy_pj"]
+        ea = evaluate(narrow, ROOT, workload_name="vit_base")["metrics"]["energy_mj"]
+        eb = evaluate(wide, ROOT, workload_name="vit_base")["metrics"]["energy_mj"]
         self.assertNotAlmostEqual(ea, eb, places=3)
 
     def test_area_is_workload_independent(self):
@@ -246,7 +262,7 @@ class TestRealWorkloadEvaluation(unittest.TestCase):
         tiny = evaluate(self.hardware, ROOT, workload_name="vit_tiny")
         small = evaluate(self.hardware, ROOT, workload_name="vit_small")
         self.assertAlmostEqual(
-            tiny["metrics"]["area_um2"], small["metrics"]["area_um2"], places=6
+            tiny["metrics"]["area_mm2"], small["metrics"]["area_mm2"], places=6
         )
 
     def test_per_layer_energy_sums_to_total(self):
@@ -256,8 +272,10 @@ class TestRealWorkloadEvaluation(unittest.TestCase):
         self.assertEqual(
             set(by_layer), set(sub_arch(report["workload"]["partition_cycles"]))
         )
+        # by_layer 只覆盖**计算**能耗（存储能耗按层级报告在 memory.energy），
+        # 因此应与 si_metrics 的计算分量比较，而不是含存储的总量。
         self.assertAlmostEqual(
-            sum(by_layer.values()), report["metrics"]["energy_pj"], places=3
+            sum(by_layer.values()), report["si_metrics"]["energy_compute_pj"], places=3
         )
 
     def test_per_layer_energy_is_not_a_cycles_estimate(self):
@@ -267,7 +285,7 @@ class TestRealWorkloadEvaluation(unittest.TestCase):
         cycles = sub_arch(report["workload"]["partition_cycles"])
         switching = {name: c[0] * c[1] * c[2] for name, c in cycles.items()}
         total_switching = sum(switching.values())
-        total_energy = report["metrics"]["energy_pj"]
+        total_energy = report["metrics"]["energy_mj"]
 
         deviations = [
             abs(by_layer[name] - total_energy * switching[name] / total_switching)
@@ -305,16 +323,44 @@ class TestLayerRankToolUsesNativeEnergy(unittest.TestCase):
                 current_hardware=hardware,
                 search_space={},
             )
+            # 取全部层：单位一致性断言要求逐层求和，截断到 top-5 会漏掉一部分。
             ranks = AnalysisToolbox(search_space={}).run(
-                "summarize_layer_ranks", context, {"top_layers": 5}
+                "summarize_layer_ranks", context, {"top_layers": 10**6}
             ).payload["layers"]
+            # 在临时目录销毁前读取报告原始值，供下面的单位一致性断言使用。
+            report = json.loads(
+                Path(evaluation.detail_files["report"]).read_text(encoding="utf-8")
+            )
+            native_pj = sum(
+                sum(v.values()) if isinstance(v, dict) else float(v)
+                for v in report["energy"]["by_layer"].values()
+            )
+            total_mj = evaluation.metrics["energy_mj"]
 
         self.assertTrue(ranks)
         for layer in ranks:
             self.assertEqual(layer["energy_source"], "simulated")
-            self.assertGreater(layer["energy_pj"], 0.0)
-        energies = [layer["energy_pj"] for layer in ranks]
+            self.assertGreater(layer["energy_mj"], 0.0)
+        energies = [layer["energy_mj"] for layer in ranks]
         self.assertEqual(energies, sorted(energies, reverse=True))
+
+        # 单位一致性回归：``ranks`` 混合了两个来源——SimPhony 原生的
+        # ``energy.by_layer``（pJ）与规范单位的目标指标（mJ）。早期版本把 pJ
+        # 直接塞进 ``energy_mj``，使排序在 1e9 倍误差下错乱，瓶颈定位全错。
+        # 不变量 1：逐层能耗必须等于**报告原生 by_layer 的 pJ 值 ÷ 1e9**。
+        # 这是独立重算：它直接检查换算有没有发生，而不是复述被测代码。
+        self.assertGreater(native_pj, 0.0)
+        self.assertAlmostEqual(sum(energies), native_pj * 1e-9,
+                               delta=max(native_pj * 1e-9 * 1e-6, 1e-12))
+        # 不变量 2：逐层之和虽只是总能耗的子集（不含存储/静态），但必须在同一
+        # 数量级内——把 pJ 直接当 mJ 用时这里会差 9 个数量级。
+        self.assertGreater(sum(energies), total_mj * 1e-3)
+        self.assertLess(sum(energies), total_mj * 2.0)
+
+        # 逐层延迟必须是 ms 量级（cycles/freq 得到 ns，需乘 1e-6）。
+        for layer in ranks:
+            self.assertLess(layer["latency_ms"], 1e3, layer)
+            self.assertGreater(layer["latency_ms"], 0.0, layer)
 
     def test_operator_group_tool_aggregates_layers(self):
         import tempfile
@@ -349,7 +395,7 @@ class TestLayerRankToolUsesNativeEnergy(unittest.TestCase):
 
         # 占比已归一化，且列表按能量排序。
         self.assertAlmostEqual(sum(g["energy_share"] for g in groups), 1.0, places=6)
-        energies = [g["energy_pj"] for g in groups]
+        energies = [g["energy_mj"] for g in groups]
         self.assertEqual(energies, sorted(energies, reverse=True))
 
         # 每层恰好被计入一次，且截断被遵守。
@@ -357,6 +403,94 @@ class TestLayerRankToolUsesNativeEnergy(unittest.TestCase):
         for group in groups:
             self.assertLessEqual(len(group["top_layers"]), 2)
             self.assertGreaterEqual(group["layer_count"], 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TestAccountingConsistency(unittest.TestCase):
+    """口径自洽：能耗（计算+存储）与面积（逐器件+节点边界框）必须能对上账。
+
+    这组断言针对的是**跨模块接口**：单看任一模块都自洽，错配只在汇总处显现。
+    历史上有两处真实缺陷正是这样漏掉的：
+      * ``energy`` 只计计算能耗，而 ``latency`` 含存储延时（存储占 75–90%）；
+      * 厂商 ``simu_area`` 的 ``if "node" not in v`` 判断的是字典内部键而非键名，
+        导致节点面积被重复计入（真实模式多算 43%）。
+    """
+
+    def _report(self):
+        import tempfile
+
+        from photon_tuner.simulators.simphony import SimphonyAdapter
+
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter = SimphonyAdapter(
+                simphony_root="photon_tuner/simulators/simphony",
+                output_root=Path(tmp),
+                mode="analytic",
+                workload_name="vit_tiny",
+            )
+            evaluation = adapter.evaluate(default_hardware(), 0)
+            report = json.loads(
+                Path(evaluation.detail_files["report"]).read_text(encoding="utf-8")
+            )
+        return evaluation.metrics, report
+
+    def test_energy_splits_into_compute_and_memory(self):
+        metrics, report = self._report()
+        self.assertIn("energy_compute_mj", metrics)
+        self.assertIn("energy_memory_mj", metrics)
+        total = metrics["energy_mj"]
+        self.assertAlmostEqual(
+            metrics["energy_compute_mj"] + metrics["energy_memory_mj"], total,
+            delta=max(total * 1e-9, 1e-12),
+        )
+        # 存储能耗必须被真正计入，而不是被静默丢弃。
+        self.assertGreater(metrics["energy_memory_mj"], 0.0)
+        # SI 镜像与规范单位必须一致。
+        si = report["si_metrics"]
+        self.assertAlmostEqual(metrics["energy_mj"], si["energy_pj"] * 1e-9,
+                               delta=abs(metrics["energy_mj"]) * 1e-9)
+
+    def test_area_total_equals_device_plus_node_bbox(self):
+        metrics, report = self._report()
+        arch = list(report["area"]["total"])[0]
+        composition = report["area"]["composition"][arch]
+        self.assertAlmostEqual(
+            composition["device_area_um2"] + composition["node_bbox_um2"],
+            composition["total_um2"],
+            delta=max(composition["total_um2"] * 1e-9, 1e-6),
+        )
+        self.assertAlmostEqual(
+            metrics["area_mm2"], composition["total_um2"] * 1e-6,
+            delta=abs(metrics["area_mm2"]) * 1e-9,
+        )
+
+    def test_chip_breakdown_sums_to_total(self):
+        """按 chip 求和必须等于总量——厂商版本会静默漏掉节点边界框。"""
+        _, report = self._report()
+        arch = list(report["area"]["by_chip_type"])[0]
+        chip_sum = sum(v["total_area"] for v in report["area"]["by_chip_type"][arch].values())
+        total = report["area"]["total"][arch]
+        self.assertAlmostEqual(chip_sum, total, delta=max(abs(total) * 1e-6, 1e-6))
+
+    def test_latency_splits_into_computation_and_memory(self):
+        _, report = self._report()
+        arch = list(report["latency"]["total"])[0]
+
+        def leaves(value):
+            if isinstance(value, dict):
+                return sum(leaves(v) for v in value.values())
+            return float(value)
+
+        parts = leaves(report["latency"]["computation"][arch]) + leaves(
+            report["latency"]["memory"][arch]
+        )
+        self.assertAlmostEqual(
+            leaves(report["latency"]["total"][arch]), parts,
+            delta=max(abs(parts) * 1e-6, 1e-12),
+        )
 
 
 if __name__ == "__main__":

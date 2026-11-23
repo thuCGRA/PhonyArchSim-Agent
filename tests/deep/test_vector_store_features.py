@@ -4,7 +4,9 @@
 """
 
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from photon_tuner.rag.embeddings import HashingEmbeddingModel
@@ -72,6 +74,31 @@ class TestVectorStoreFeatures(unittest.TestCase):
         self.assertGreaterEqual(len(summaries), 1)
         self.assertEqual(summaries[0]["solution"], {"fix": "raise power"})
         self.assertAlmostEqual(summaries[0]["score"], 1.0, places=3)
+
+    def test_retriever_can_run_in_langgraph_worker_thread(self):
+        """The store is created on the scheduler thread but tools run in workers."""
+        self.store.add(
+            "memory energy bottleneck",
+            {"arch": {"tiles": 4}},
+            solution={"fix": "reduce memory traffic"},
+            metrics={},
+        )
+        creator_thread = threading.get_ident()
+        retriever = self.store.as_history_retriever(
+            top_k=5,
+            min_score=0.0,
+            hardware_provider=lambda: {"arch": {"tiles": 4}},
+        )
+
+        def retrieve():
+            return threading.get_ident(), retriever.invoke("memory energy bottleneck")
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            worker_thread, docs = pool.submit(retrieve).result(timeout=5)
+
+        self.assertNotEqual(worker_thread, creator_thread)
+        self.assertEqual(len(docs), 1)
+        self.assertEqual(docs[0].metadata["solution"]["fix"], "reduce memory traffic")
 
 
 if __name__ == "__main__":

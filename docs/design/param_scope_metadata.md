@@ -223,7 +223,7 @@ tiles / cores_per_tile / work_freq 等生效参数.
 
 - 主测试套件 `325 tests OK`；`tests/deep` `118 tests OK`
 - 端到端 real 模式 CLI 烟雾测试通过（`metrics.json` 产出
-  `energy_pj` / `area_um2` / `latency_s`，exit 0）
+  `energy_mj` / `area_mm2` / `latency_ms`，exit 0）
 - 元数据与实测 8×12 有效性矩阵逐格一致
 
 ## 8. 后续可做

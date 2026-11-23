@@ -257,6 +257,51 @@ FAMILY_LABELS: Dict[str, str] = {
 }
 
 PARAM_SCOPE: Dict[str, Dict[str, Any]] = {
+    "weight_bank_groups": {
+        "core_kinds": {"mrr_weight_bank"},
+        "outside_core_kinds": {
+            "status": "not_applicable",
+            "reason": "仅 MRR 权重组提供独立的分组读出链和部分和归约。",
+            "action": "选择 mrr_weight_bank 后再调整读出分组数。",
+        },
+    },
+    "laser_source": {
+        "families": {
+            "mesh_family": {
+                "status": "not_applicable",
+                "reason": "当前 mesh 网表直接使用 off-chip laser 槽位，不消费 crossbar 的 laser_source 实例开关。",
+                "action": "通过 mesh 器件槽位的器件变体选择激光器。",
+            },
+            "weight_array": {
+                "status": "not_applicable",
+                "reason": "当前权重阵列网表直接使用 off-chip laser 槽位，不消费 crossbar 的 laser_source 实例开关。",
+                "action": "通过 weight_array 器件槽位的器件变体选择激光器。",
+            },
+        },
+    },
+    "splitter_kind": {
+        "families": {
+            "mesh_family": {
+                "status": "not_applicable",
+                "reason": "当前 mesh 网表没有 crossbar 的 splitter 实例开关。",
+                "action": "如需改变分光器，请使用当前 mesh 模板实际暴露的器件槽位。",
+            },
+            "weight_array": {
+                "status": "not_applicable",
+                "reason": "当前权重阵列网表没有 crossbar 的 splitter 实例开关。",
+                "action": "如需改变分光器，请使用当前 weight_array 模板实际暴露的器件槽位。",
+            },
+        },
+    },
+    "sharing_policy": {
+        "families": {
+            "weight_array": {
+                "status": "not_applicable",
+                "reason": "权重阵列使用每核一条输出读出链及其专用器件缩放规则，不应用通用 ADC/TIA 共享规则。",
+                "action": "不要在该拓扑族搜索 sharing_policy；如要比较共享方案，需先为 weight-array 实现并验证专用缩放规则。",
+            },
+        },
+    },
     "core_height": {
         "families": {
             "mesh_family": {
@@ -572,7 +617,59 @@ def _current_core_kind(hardware: Optional[Dict[str, Any]]) -> str:
     return str(topo.get("core_kind", "dptc_crossbar"))
 
 
-def param_status(param: str, core_kind: Optional[str] = None) -> Dict[str, Any]:
+# --------------------------------------------------------------------------- #
+# 模式级惰性参数：在**某个求值后端**下根本不参与计算，但在另一个后端下有效。
+#
+# 与 PARAM_SCOPE 的区别：PARAM_SCOPE 说的是"这个参数在该拓扑族下有没有物理意义"；
+# 这里说的是"这个参数在该后端有没有被真正读取"。两者都必须显式声明，否则
+# `searchable_parameters` 会对智能体撒谎——它会花掉评估预算去动一个不动的旋钮。
+#
+# 实证方法：在 real 模式下逐个取值求值，比较 latency/energy/area 是否变化
+# （见 scripts/analysis/audit_consistency.py 与 docs/results/consistency_audit.md）。
+# --------------------------------------------------------------------------- #
+
+MODE_INERT_PARAMS: Dict[str, Dict[str, Dict[str, Any]]] = {
+    "real": {
+        "hbm_bandwidth": {
+            "status": "not_consumed",
+            "reason": "真实 SimPhony 的存储工作流不读取 HBM bandwidth：实测 "
+                      "512/1024/2048/4096 GB/s 得到逐位相同的 latency/energy/area。"
+                      "该参数只在项目的解析镜像里被消费。",
+            "action": "real 模式下不要搜索它；若需要它生效，须把带宽接入 SimPhony 的 "
+                      "DRAM 延迟模型，而不是把它加回候选表",
+        },
+        "precision_w_bit": {
+            "status": "not_consumed",
+            "reason": "真实 SimPhony 的能耗/面积工作流不读取 weight 位宽：实测 "
+                      "2/4/8 bit 得到逐位相同的 latency/energy/area（in_bit 与 out_bit "
+                      "则确实生效）。",
+            "action": "real 模式下搜索 in_bit / out_bit 而不是 w_bit；若要 w_bit 生效，"
+                      "须把它接入光学核心的量化模型",
+        },
+    },
+    "analytic": {
+        "weight_bank_groups": {
+            "status": "unsupported_by_backend",
+            "reason": "解析后端尚未建模 MRR 双组的部分和归约。",
+            "action": "使用 real 模式评估双组，或在解析后端保留单组。",
+            "implementable": True,
+        },
+    },
+}
+
+
+def mode_status(param: str, mode: Optional[str]) -> Optional[Dict[str, Any]]:
+    """返回该参数在 ``mode`` 后端下的惰性声明（无则为 ``None``）。"""
+    if not mode:
+        return None
+    return (MODE_INERT_PARAMS.get(str(mode)) or {}).get(str(param))
+
+
+def param_status(
+    param: str,
+    core_kind: Optional[str] = None,
+    mode: Optional[str] = None,
+) -> Dict[str, Any]:
     """返回 ``param`` 在 ``core_kind`` 所属拓扑族下的有效性状态。
 
     返回字典至少包含 ``param`` / ``status`` / ``family``，并按状态附带
@@ -583,6 +680,9 @@ def param_status(param: str, core_kind: Optional[str] = None) -> Dict[str, Any]:
     family = core_family(core_kind)
     spec = PARAM_SCOPE.get(str(param)) or {}
     per_family = (spec.get("families") or {}).get(family) or {}
+    supported_cores = spec.get("core_kinds")
+    if supported_cores is not None and core_kind not in supported_cores:
+        per_family = spec["outside_core_kinds"]
     status = str(per_family.get("status") or "effective")
     out: Dict[str, Any] = {
         "param": str(param),
@@ -593,12 +693,21 @@ def param_status(param: str, core_kind: Optional[str] = None) -> Dict[str, Any]:
     for key in ("reason", "action", "by", "implementable", "impl_reference"):
         if key in per_family:
             out[key] = per_family[key]
+    # 拓扑族层面"有效"的参数，仍可能在该后端下不被读取。
+    inert = mode_status(param, mode)
+    if inert is not None and out["status"] == "effective":
+        out.update(inert)
+        out["mode"] = str(mode)
     return out
 
 
-def is_param_effective(param: str, core_kind: Optional[str] = None) -> bool:
-    """``param`` 在该拓扑族下是否真正影响仿真结果。"""
-    return param_status(param, core_kind)["status"] == "effective"
+def is_param_effective(
+    param: str,
+    core_kind: Optional[str] = None,
+    mode: Optional[str] = None,
+) -> bool:
+    """``param`` 在该拓扑族**且该后端**下是否真正影响仿真结果。"""
+    return param_status(param, core_kind, mode)["status"] == "effective"
 
 
 def hidden_params(
@@ -802,6 +911,34 @@ def inspect_topology_template(name: str) -> Dict[str, Any]:
     )
 
 
+def validate_weight_bank_groups(
+    hardware: Optional[Dict[str, Any]], mode: Optional[str] = None,
+) -> int:
+    """Return the supported readout group count for a hardware configuration."""
+    arch = (hardware or {}).get("arch", {}) or {}
+    topology = arch.get("topology", {}) or {}
+    groups = topology.get("weight_bank_groups", 1)
+    if type(groups) is not int or groups not in (1, 2):
+        raise ValueError("weight_bank_groups must be the integer 1 or 2")
+    if groups == 1:
+        return groups
+    if topology.get("core_kind") != "mrr_weight_bank":
+        raise ValueError("weight_bank_groups=2 requires mrr_weight_bank")
+    if mode == "analytic":
+        raise ValueError("weight_bank_groups=2 requires the real simulator")
+    core = arch.get("optical_core", {}) or {}
+    rank = topology.get("mesh_rank")
+    if rank is None:
+        rank = core.get("height", core.get("width", 8))
+    try:
+        wavelength_count = int(rank)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError("weight_bank_groups=2 requires an even total wavelength count") from None
+    if wavelength_count < 2 or wavelength_count % 2 or float(rank) != wavelength_count:
+        raise ValueError("weight_bank_groups=2 requires an even total wavelength count of at least 2")
+    return groups
+
+
 def validate_coupling(
     hardware: Optional[Dict[str, Any]],
     design_space: Optional[Any] = None,
@@ -826,6 +963,11 @@ def validate_coupling(
     topo = (hardware or {}).get("arch", {}).get("topology", {}) or {}
     core_kind = str(topo.get("core_kind", "dptc_crossbar"))
     node_kind = str(topo.get("node_kind", "dode"))
+
+    try:
+        validate_weight_bank_groups(hardware, mode)
+    except ValueError as exc:
+        violations.append({"scope": "weight_bank_groups", "message": str(exc)})
 
     if core_kind not in CORE_KINDS:
         violations.append({

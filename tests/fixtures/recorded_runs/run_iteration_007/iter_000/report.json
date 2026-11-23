@@ -1428,8 +1428,25 @@
     }
   },
   "metrics": {
+    "energy_mj": 0.5110195781065281,
+    "area_mm2": 403.8062527999999,
+    "latency_ms": 0.523848026957
+  },
+  "si_metrics": {
+    "latency_s": 0.0005238480269569999,
     "energy_pj": 511019578.10652804,
-    "area_um2": 403806252.79999995,
-    "latency_s": 0.0005238480269569999
+    "area_um2": 403806252.79999995
+  },
+  "units": {
+    "metrics": {
+      "latency_ms": "ms",
+      "energy_mj": "mJ",
+      "area_mm2": "mm^2"
+    },
+    "insertion_loss": "dB",
+    "energy": "pJ",
+    "area": "um^2",
+    "latency": "s",
+    "note": "Only the `metrics` block is in engineering units."
   }
 }

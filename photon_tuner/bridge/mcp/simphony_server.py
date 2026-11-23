@@ -23,6 +23,62 @@ import os
 import sys
 from pathlib import Path
 
+
+def _isolate_protocol_stdout() -> None:
+    """把 JSON-RPC 协议独占到一个私有 fd，并让 fd 1 / ``sys.stdout`` 都指向
+    ``/dev/null``。
+
+    必须在**任何重型 import 之前**调用。真实 SimPhony 及其依赖会在 import 阶段
+    与运行阶段向 stdout 写普通文本：``[W] Cannot import torchsummary``、
+    ``CACTI simulation completed. Parsing the results...``（后者是模拟器里的
+    Python ``print``）。MCP 的 stdio 传输把 stdout 当作 JSON-RPC 通道，任何一个
+    杂字节都会让对端 ``JSONSerializable`` 解析失败——表现为随机的
+    ``Invalid JSON`` / ``JSONDecodeError``，整轮实验被中断。
+
+    关键点：**不能**仅仅把 ``sys.stdout`` 重绑到协议 fd。那样协议和 Python
+    ``print`` 又共用同一条流，问题原样复现。正确做法是三个通道彻底分离：
+
+    * 协议   -> 私有 fd（复制自原 fd 1，仅 :func:`_serve` 使用）
+    * fd 1   -> ``/dev/null``（吃掉 C 层、子进程、CACTI 的原生输出）
+    * ``sys.stdout`` -> ``/dev/null``（吃掉模拟器的 Python ``print``）
+
+    服务端日志仍可经 ``stderr`` 观察，不损失可诊断性。
+    """
+    global _PROTOCOL_FD
+    _PROTOCOL_FD = os.dup(1)
+    devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull_fd, 1)
+    os.close(devnull_fd)
+    # Python 层输出也丢掉：模拟器的 print 走 sys.stdout，而不是 fd 1。
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+
+
+def _serve() -> None:
+    """以显式协议流运行 MCP stdio 服务，绕开被隔离的 ``sys.stdout``。"""
+    import anyio
+    from io import TextIOWrapper
+
+    from mcp.server.stdio import stdio_server
+
+    async def _main() -> None:
+        binary = os.fdopen(_PROTOCOL_FD, "wb", buffering=0)
+        protocol = anyio.wrap_file(TextIOWrapper(binary, encoding="utf-8"))
+        async with stdio_server(stdout=protocol) as (read_stream, write_stream):
+            await mcp._mcp_server.run(
+                read_stream,
+                write_stream,
+                mcp._mcp_server.create_initialization_options(),
+            )
+
+    anyio.run(_main)
+
+
+#: 承载 JSON-RPC 的私有 fd（:func:`_isolate_protocol_stdout` 填入）。
+_PROTOCOL_FD: int = -1
+
+# 就地进行隔离：位置必须在这里，晚于它 import 的模块可能已经向 fd 1 写过东西。
+_isolate_protocol_stdout()
+
 # 无论子进程从何处启动，都保证项目根目录与内置 SimPhony 代码库可被导入。
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _SIMPHONY_ROOT = _PROJECT_ROOT / "photon_tuner" / "simulators" / "simphony"
@@ -48,6 +104,11 @@ def _get_adapter():
 
     ONN 模型在每次 ``evaluate`` 调用时通过 ``_resolve_nn_model`` 重新构建，
     与已验证的进程内真实模式路径保持一致。
+
+    注意：**工作负载由这些环境变量决定**，不是由 ``evaluate`` 的参数决定。
+    主机侧的 ``SimphonyAdapter(nn_model_factory=...)`` 在 ``transport="mcp"``
+    下不生效——若主机忘了设置 ``SIMPHONY_NN_FACTORY`` / ``SIMPHONY_WORKLOAD``，
+    服务端会静默回退到 ``vit_tiny``，于是"mobilevit 跑出来是 vit_tiny 的数"。
     """
     global _adapter
     if _adapter is None:
@@ -72,21 +133,12 @@ def _get_adapter():
 
 @contextlib.contextmanager
 def _mute_stdout():
-    """在块内将 fd 1（stdout）指向 fd 2（stderr）。
+    """保留为兼容包装；真正的隔离已由 :func:`_isolate_protocol_stdout` 完成。
 
-    真实 SimPhony 模拟器和 CACTI 子进程都会向 stdout 打印进度，若不处理会
-    破坏 MCP 的 stdio JSON-RPC 流（客户端把每一行 stdout 都当作协议消息解析）。
-    在文件描述符层面重定向，可同时覆盖 Python ``print`` 与子进程输出。
+    进程启动时 fd 1 已指向 ``/dev/null``，协议走私有 fd，因此这里不需要再做
+    任何重定向——再做一次反而会把协议 fd 关掉。
     """
-    sys.stdout.flush()
-    saved = os.dup(1)
-    try:
-        os.dup2(2, 1)
-        yield
-    finally:
-        os.dup2(saved, 1)
-        os.close(saved)
-        sys.stdout.flush()
+    yield
 
 
 @mcp.tool()
@@ -122,4 +174,5 @@ def ping() -> str:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="stdio")
+    # 隔离已在模块顶部（任何重型 import 之前）完成；这里用显式协议流启动。
+    _serve()

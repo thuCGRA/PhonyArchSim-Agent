@@ -139,7 +139,25 @@ class SimphonyBaselineEvaluator:
             )
 
         t0 = time.perf_counter()
-        result: EvaluationResult = self.adapter.evaluate(hw, self._eval_counter)
+        try:
+            result: EvaluationResult = self.adapter.evaluate(hw, self._eval_counter)
+        except Exception as exc:  # noqa: BLE001 — 仿真器拒绝该点不应中断整轮搜索
+            # 真实 SimPhony 会对物理/后端不可行的点直接抛错（例如 CACTI 无法建模
+            # 的缓存配置）。这类点应被当作**不可行**丢弃，而不是让整轮实验崩掉：
+            # 传统算法与 agent 面对的是同一个非平滑、带洞的设计空间。
+            dt = time.perf_counter() - t0
+            self._total_wall += dt
+            failed = EvalRecord(
+                hardware=hw,
+                metrics={"objective": float("inf"), "simulation_error": str(exc)[:500]},
+                fingerprint=fp,
+                eval_index=self._eval_counter,
+                cached=False,
+                wall_s=dt,
+                run_dir=None,
+                action=action,
+            )
+            return failed
         dt = time.perf_counter() - t0
         self._total_wall += dt
 

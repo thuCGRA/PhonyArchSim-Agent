@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 import sqlite3
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,7 +28,7 @@ except ImportError:  # pragma: no cover - 域测试在无 langchain 环境下运
     BaseRetriever = None  # type: ignore[assignment]
     VectorStore = None  # type: ignore[assignment]
 
-from photon_tuner.core.search_space import hardware_summary
+from photon_tuner.core.search_space import DesignSpace, hardware_summary
 from photon_tuner.rag.embeddings import HashingEmbeddingModel, Vector
 
 
@@ -90,20 +91,104 @@ def build_case_vector(embedder: Any, bottleneck_text: str, hardware: Dict[str, A
     ]
 
 
-def summarize_cases(cases: List[RetrievedCase], limit: int = 5) -> List[Dict[str, Any]]:
+#: 案例结局的默认变化阈值，以百分数计（5.0 表示 5%）。
+#: 沿用对称判定：下降达标为 improved，上升达标为 worse，其余为 unchanged。
+#: 只有 improved 案例计入有效先例与层级覆盖；这是可配置的策略超参，
+#: 随运行记录落盘，以便复现案例筛选和调度决策。
+DEFAULT_IMPROVED_DELTA_PCT: float = 5.0
+
+
+def case_outcome(
+    metrics: Dict[str, Any],
+    improved_delta_pct: float = DEFAULT_IMPROVED_DELTA_PCT,
+) -> Dict[str, Any]:
+    """从 ``{before, after}`` 指标推出这次提案的**结局**。
+
+    ``improved_delta_pct`` 以百分数计（默认 5.0 表示 5%）：目标值下降达到
+    该比例才记为 ``improved``，上升达到该比例记为 ``worse``，其余记为
+    ``unchanged``。
+
+    为什么必须有这个字段：存储里既有成功的提案也有失败的提案。若只按描述相似度
+    检索，智能体会把"上次这么改是错的"当成"上次这么改是对的"，而且调度器的
+    ρ 也会把"检索到相似描述"误当成"有可用先验"。把结局显式标出来，检索结果才
+    能被正确使用。
+    """
+    before = (metrics or {}).get("before") or {}
+    after = (metrics or {}).get("after") or {}
+    try:
+        b = float(before.get("objective"))
+        a = float(after.get("objective"))
+    except (TypeError, ValueError):
+        return {"label": "unknown", "delta_pct": None}
+    if b <= 0:
+        return {"label": "unknown", "delta_pct": None}
+    delta = (b - a) / b * 100.0
+    threshold = max(float(improved_delta_pct), 0.0)
+    if abs(delta) < threshold:
+        label = "unchanged"
+    elif delta > 0:
+        label = "improved"
+    else:
+        label = "worse"
+    return {"label": label, "delta_pct": round(delta, 2)}
+
+
+_DEFAULT_DESIGN_SPACE = DesignSpace()
+
+
+def _solution_layers(solution: Dict[str, Any], metadata: Dict[str, Any]) -> List[str]:
+    """Infer which design layers a verified case exercised.
+
+    New records carry explicit layer labels. The fallback parses legacy solution
+    edits so old memory records can still contribute to maturity coverage.
+    """
+    recorded = metadata.get("layers") or []
+    layers = {str(layer) for layer in recorded if str(layer) in {"architecture", "topology", "device"}}
+    if layers:
+        return sorted(layers)
+    actions = solution.get("actions") or []
+    for action in actions:
+        if not isinstance(action, dict):
+            continue
+        name = str(action.get("name") or action.get("action") or "")
+        args = action.get("arguments") or {}
+        if name == "modify_topology_template":
+            layers.add("topology")
+        elif name in {"step_hardware_parameter", "modify_hardware_parameter"}:
+            updates = (args,) if name == "step_hardware_parameter" else (args.get("updates") or [])
+            for update in updates:
+                if isinstance(update, dict):
+                    layer = _DEFAULT_DESIGN_SPACE.layer_of(str(update.get("parameter") or ""))
+                    if layer in {"architecture", "topology"}:
+                        layers.add(layer)
+    if solution.get("link_edits"):
+        layers.add("device")
+    return sorted(layers)
+
+
+def summarize_cases(
+    cases: List[RetrievedCase],
+    limit: int = 5,
+    improved_delta_pct: float = DEFAULT_IMPROVED_DELTA_PCT,
+) -> List[Dict[str, Any]]:
     summaries = []
     for case in cases[:limit]:
         record = case.record
         summaries.append({
             "score": round(case.score, 4),
             "hardware": summarize_hardware(record.hardware),
+            "outcome": case_outcome(record.metrics, improved_delta_pct),
             "metrics": record.metrics,
             "solution": record.solution,
         })
     return summaries
 
 
-def summarize_documents(docs: List[Any], limit: int = 5) -> List[Dict[str, Any]]:
+def summarize_documents(
+    docs: List[Any],
+    limit: int = 5,
+    improved_delta_pct: float = DEFAULT_IMPROVED_DELTA_PCT,
+) -> List[Dict[str, Any]]:
     """从 Retriever 的 ``Document`` 列表重建面向 LLM 的摘要。
 
     ``HistoryRetriever`` 将完整的 :class:`HistoryRecord` 编码进每个
@@ -115,10 +200,12 @@ def summarize_documents(docs: List[Any], limit: int = 5) -> List[Dict[str, Any]]
         meta = (getattr(doc, "metadata", None) or {})
         if "record_id" not in meta:
             continue
+        metrics = meta.get("metrics", {})
         summaries.append({
             "score": round(float(meta.get("score", 0.0)), 4),
             "hardware": summarize_hardware(meta.get("hardware", {})),
-            "metrics": meta.get("metrics", {}),
+            "outcome": case_outcome(metrics, improved_delta_pct),
+            "metrics": metrics,
             "solution": meta.get("solution", {}),
         })
     return summaries
@@ -150,17 +237,26 @@ class HistoryVectorStore(VectorStore if VectorStore is not None else object):
         db_path: Path,
         embedder: Optional[Any] = None,
         max_records: Optional[int] = None,
+        improved_delta_pct: float = DEFAULT_IMPROVED_DELTA_PCT,
     ) -> None:
         self.db_path = Path(db_path)
+        # 结局判定的容差：随运行落盘（见 orchestrator 的 scheduler_config），
+        # 使"这条案例为什么被判为 improved"可复现、可审计。
+        self.improved_delta_pct = float(improved_delta_pct)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.embedder = embedder or HashingEmbeddingModel()
         # 有界存储：设置后，``add`` 会在超过上限时清除最旧的记录。
         self.max_records = int(max_records) if max_records is not None else None
-        # ``timeout`` + ``busy_timeout`` 使繁忙的数据库在并发访问下短暂等待，
-        # 而不是立即抛错。该存储目前是单线程的，但这样更安全。
-        self.conn = sqlite3.connect(str(self.db_path), timeout=30.0)
-        self.conn.execute("PRAGMA busy_timeout = 30000")
-        self._init_schema()
+        # LangGraph 在工作线程中执行工具；同一 RAG 存储因此会由主调度线程和
+        # 工具线程共同访问。SQLite 连接允许跨线程复用，并由进程内 RLock 串行化
+        # 每个事务以及与事务关联的查询缓存更新。
+        self._lock = threading.RLock()
+        self.conn = sqlite3.connect(
+            str(self.db_path), timeout=30.0, check_same_thread=False
+        )
+        with self._lock:
+            self.conn.execute("PRAGMA busy_timeout = 30000")
+            self._init_schema()
         # 查询结果缓存，键为 (瓶颈描述, 硬件指纹, top_k)：相同查询可跳过
         # 全表扫描和余弦相似度重算。
         self._search_cache: Dict[tuple, List[RetrievedCase]] = {}
@@ -207,41 +303,43 @@ class HistoryVectorStore(VectorStore if VectorStore is not None else object):
             metadata=metadata or {},
             bottleneck_state=bottleneck_state or {},
         )
-        self.conn.execute(
-            """
-            INSERT OR REPLACE INTO history VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                record.record_id,
-                json.dumps(vector),
-                bottleneck_description,
-                json.dumps(hardware, ensure_ascii=False),
-                json.dumps(solution, ensure_ascii=False),
-                json.dumps(metrics or {}, ensure_ascii=False),
-                json.dumps(metadata or {}, ensure_ascii=False),
-                json.dumps(bottleneck_state or {}, ensure_ascii=False),
-                record.created_at,
-            ),
-        )
-        self.conn.commit()
-        # 新数据使缓存的搜索结果失效。
-        self._search_cache.clear()
-        self._enforce_capacity()
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO history VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.record_id,
+                    json.dumps(vector),
+                    bottleneck_description,
+                    json.dumps(hardware, ensure_ascii=False),
+                    json.dumps(solution, ensure_ascii=False),
+                    json.dumps(metrics or {}, ensure_ascii=False),
+                    json.dumps(metadata or {}, ensure_ascii=False),
+                    json.dumps(bottleneck_state or {}, ensure_ascii=False),
+                    record.created_at,
+                ),
+            )
+            self.conn.commit()
+            # 新数据使缓存的搜索结果失效。
+            self._search_cache.clear()
+            self._enforce_capacity()
         return record
 
     def _enforce_capacity(self) -> None:
-        if not self.max_records:
-            return
-        count = int(self.conn.execute("SELECT COUNT(*) FROM history").fetchone()[0])
-        if count > self.max_records:
-            excess = count - self.max_records
-            self.conn.execute(
-                "DELETE FROM history WHERE record_id IN ("
-                "  SELECT record_id FROM history ORDER BY created_at ASC LIMIT ?"
-                ")",
-                (excess,),
-            )
-            self.conn.commit()
+        with self._lock:
+            if not self.max_records:
+                return
+            count = int(self.conn.execute("SELECT COUNT(*) FROM history").fetchone()[0])
+            if count > self.max_records:
+                excess = count - self.max_records
+                self.conn.execute(
+                    "DELETE FROM history WHERE record_id IN ("
+                    "  SELECT record_id FROM history ORDER BY created_at ASC LIMIT ?"
+                    ")",
+                    (excess,),
+                )
+                self.conn.commit()
 
     def search(
         self,
@@ -255,11 +353,12 @@ class HistoryVectorStore(VectorStore if VectorStore is not None else object):
             bottleneck_description, hardware_fingerprint(hardware),
             int(top_k), float(min_score),
         )
-        cached = self._search_cache.get(cache_key)
-        if cached is not None:
-            return list(cached)
         query_vector = build_case_vector(self.embedder, bottleneck_description, hardware)
-        rows = self.conn.execute("SELECT * FROM history").fetchall()
+        with self._lock:
+            cached = self._search_cache.get(cache_key)
+            if cached is not None:
+                return list(cached)
+            rows = self.conn.execute("SELECT * FROM history").fetchall()
         scored: List[RetrievedCase] = []
         for row in rows:
             vector = json.loads(row[1])
@@ -280,7 +379,8 @@ class HistoryVectorStore(VectorStore if VectorStore is not None else object):
         scored = [case for case in scored if case.score >= min_score]
         scored.sort(key=lambda case: case.score, reverse=True)
         result = scored[:top_k]
-        self._cache_result(cache_key, result)
+        with self._lock:
+            self._cache_result(cache_key, result)
         return list(result)
 
     def _cache_result(self, cache_key: tuple, result: List[RetrievedCase]) -> None:
@@ -289,8 +389,54 @@ class HistoryVectorStore(VectorStore if VectorStore is not None else object):
             self._search_cache.pop(next(iter(self._search_cache)))
         self._search_cache[cache_key] = result
 
+    def improved_case_count(self) -> int:
+        """统计记忆中**结局为 improved** 的案例数。
+
+        这是"记忆成熟度"的度量，刻意不依赖相似度：项目默认的哈希嵌入下，
+        案例两两余弦相似度实测可达 0.999，任何阈值都退化，ρ 会变成
+        "库里有没有案例"的同义词。改用结局计数后，信号的含义是确定的
+        ——"我手上有几个已验证有效的先例"。
+        """
+        total = 0
+        with self._lock:
+            rows = self.conn.execute("SELECT metrics_json FROM history").fetchall()
+        for (raw,) in rows:
+            try:
+                payload = json.loads(raw)
+            except (TypeError, ValueError):
+                continue
+            outcome = case_outcome(payload if isinstance(payload, dict) else {},
+                                   self.improved_delta_pct)
+            if outcome.get("label") == "improved":
+                total += 1
+        return total
+
+    def improved_case_stats(self) -> Dict[str, Any]:
+        """Return effective precedent count and the distinct layers they cover."""
+        count = 0
+        layers: set[str] = set()
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT metrics_json, solution_json, metadata_json FROM history"
+            ).fetchall()
+        for metrics_raw, solution_raw, metadata_raw in rows:
+            try:
+                metrics = json.loads(metrics_raw)
+                solution = json.loads(solution_raw)
+                metadata = json.loads(metadata_raw)
+            except (TypeError, ValueError):
+                continue
+            if case_outcome(metrics if isinstance(metrics, dict) else {},
+                            self.improved_delta_pct).get("label") != "improved":
+                continue
+            count += 1
+            if isinstance(solution, dict) and isinstance(metadata, dict):
+                layers.update(_solution_layers(solution, metadata))
+        return {"count": count, "layers": sorted(layers)}
+
     def __len__(self) -> int:
-        return int(self.conn.execute("SELECT COUNT(*) FROM history").fetchone()[0])
+        with self._lock:
+            return int(self.conn.execute("SELECT COUNT(*) FROM history").fetchone()[0])
 
     def __enter__(self) -> "HistoryVectorStore":
         return self
@@ -299,10 +445,11 @@ class HistoryVectorStore(VectorStore if VectorStore is not None else object):
         self.close()
 
     def close(self) -> None:
-        try:
-            self.conn.close()
-        except Exception:  # noqa: BLE001 — 幂等关闭
-            pass
+        with self._lock:
+            try:
+                self.conn.close()
+            except Exception:  # noqa: BLE001 — 幂等关闭
+                pass
 
     # -- LangChain VectorStore 接口 ----------------------------------------
 
@@ -354,11 +501,12 @@ class HistoryVectorStore(VectorStore if VectorStore is not None else object):
 
     def delete(self, ids: Optional[List[str]] = None, **kwargs: Any) -> Optional[bool]:
         if ids:
-            self.conn.executemany(
-                "DELETE FROM history WHERE record_id = ?", [(record_id,) for record_id in ids]
-            )
-            self.conn.commit()
-            self._search_cache.clear()
+            with self._lock:
+                self.conn.executemany(
+                    "DELETE FROM history WHERE record_id = ?", [(record_id,) for record_id in ids]
+                )
+                self.conn.commit()
+                self._search_cache.clear()
         return None
 
     def as_history_retriever(

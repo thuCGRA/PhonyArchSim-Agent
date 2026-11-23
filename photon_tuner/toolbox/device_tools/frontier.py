@@ -22,7 +22,7 @@ TOOLS: Dict[str, Tuple[ToolSpec, Callable]] = {
             "summarize_device_frontier",
             "Summarize the Pareto frontier of real device variants per device type. "
             "Reports, for each type: compatible variants and their reported speed_GHz/"
-            "prec_bit/energy_cost+energy_unit/area_um2, the non-dominated energy/area "
+            "prec_bit/energy_cost+energy_unit/area_mm2, the non-dominated energy/area "
             "frontier, dominated variants, and variants excluded by the current "
             "work_freq/precision coupling. The energy metric is type-specific: mzm uses "
             "efficiency (fJ/bit) and phase_shifter uses P_pi (mW), because their static "

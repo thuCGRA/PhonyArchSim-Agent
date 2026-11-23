@@ -14,7 +14,7 @@ from photon_tuner.agents.evaluate import (
     structure_legality_check,
     topology_binding_check,
 )
-from photon_tuner.agents.outputs import ArchitectureOutput, EvaluateOutput, SolutionOutput
+from photon_tuner.agents.outputs import ArchitectureOutput, EvaluateOutput, CandidateOutput
 
 
 class _Out(BaseModel):
@@ -30,13 +30,13 @@ def _evidence_msgs():
 
 class TestEvaluateGate(unittest.TestCase):
     def test_deterministic_rows_pass_with_evidence(self):
-        checks = deterministic_checks("model", _Out(summary="x"), messages=_evidence_msgs())
+        checks = deterministic_checks("bottleneck", _Out(summary="x"), messages=_evidence_msgs())
         self.assertEqual([c["row"] for c in checks], [1, 4])
         self.assertTrue(all(c["status"] == "pass" for c in checks))
 
-    def test_solution_adds_edit_consistency_row(self):
+    def test_candidate_adds_edit_consistency_row(self):
         checks = deterministic_checks(
-            "solution", _Out(summary="x"), messages=_evidence_msgs(),
+            "candidate", _Out(summary="x"), messages=_evidence_msgs(),
             applied_edits=["step_hardware_parameter"], failed_edits=[],
             declared_edits=["step_hardware_parameter"],
         )
@@ -45,28 +45,28 @@ class TestEvaluateGate(unittest.TestCase):
 
     def test_accept_when_all_pass(self):
         checks = deterministic_checks(
-            "solution", _Out(summary="x"), messages=_evidence_msgs(),
+            "candidate", _Out(summary="x"), messages=_evidence_msgs(),
             applied_edits=["a"], failed_edits=[], declared_edits=["a"],
         )
-        checks.append(structure_legality_check("solution", _Out(summary="x")))
+        checks.append(structure_legality_check("candidate", _Out(summary="x")))
         self.assertEqual(decide(checks)["decision"], "accept")
 
     def test_edit_mismatch_triggers_reexecute(self):
         checks = deterministic_checks(
-            "solution", _Out(summary="x"), messages=_evidence_msgs(),
+            "candidate", _Out(summary="x"), messages=_evidence_msgs(),
             applied_edits=[], failed_edits=[],
             declared_edits=["step_hardware_parameter"],
         )
         self.assertEqual(decide(checks)["decision"], "re-execute")
 
     def test_missing_evidence_triggers_request_info(self):
-        checks = deterministic_checks("model", _Out(summary="x"), messages=None)
+        checks = deterministic_checks("bottleneck", _Out(summary="x"), messages=None)
         self.assertEqual(decide(checks)["decision"], "request-info")
 
     def test_structure_legality_pass_when_nothing_supplied(self):
         self.assertEqual(structure_legality_check("topology", _Out(summary="x"))["status"], "pass")
         self.assertIn("topology", STRUCTURE_LEGALITY_ROLES)
-        self.assertNotIn("model", STRUCTURE_LEGALITY_ROLES)
+        self.assertNotIn("bottleneck", STRUCTURE_LEGALITY_ROLES)
 
     def test_structure_legality_rejects_unknown_template(self):
         from photon_tuner.agents.outputs import TopologyOutput
@@ -83,7 +83,7 @@ class TestEvaluateGate(unittest.TestCase):
     def test_structure_legality_accepts_default_hardware(self):
         from photon_tuner.core.search_space import default_hardware
 
-        check = structure_legality_check("solution", _Out(summary="x"),
+        check = structure_legality_check("candidate", _Out(summary="x"),
                                           context={"hardware": default_hardware()})
         self.assertEqual(check["status"], "pass")
 
@@ -92,7 +92,7 @@ class TestEvaluateGate(unittest.TestCase):
 
         hw = default_hardware()
         hw["arch"]["topology"]["core_kind"] = "bogus_kind"
-        check = structure_legality_check("solution", _Out(summary="x"), context={"hardware": hw})
+        check = structure_legality_check("candidate", _Out(summary="x"), context={"hardware": hw})
         self.assertEqual(check["status"], "fail")
         self.assertIn("core_kind", check["detail"])
 
@@ -109,7 +109,7 @@ class TestEvaluateGate(unittest.TestCase):
         hw = default_hardware()
         hw["arch"]["optical_core"]["work_freq"] = 25  # > 10 GHz 上限
         check = structure_legality_check(
-            "solution", _Out(summary="x"), context={"hardware": hw, "design_space": strict}
+            "candidate", _Out(summary="x"), context={"hardware": hw, "design_space": strict}
         )
         self.assertEqual(check["status"], "fail")
         self.assertIn("work_freq", check["detail"])
@@ -137,7 +137,7 @@ class TestEvaluateGate(unittest.TestCase):
 
     def test_semantic_fail_flattens_and_triggers_reexecute(self):
         verdict = EvaluateOutput(
-            stage="solution",
+            stage="candidate",
             content_completeness="pass",
             evidence_completeness="pass",
             reasoning_correctness="fail - wrong root cause",
@@ -520,6 +520,58 @@ class TestStageDegradationIsGatedNotFatal(unittest.TestCase):
         self.assertIsNotNone(tuner._last_invoke_error)
         self.assertIn("Recursion limit", tuner._last_invoke_error)
 
+    def test_invoke_recovers_checkpoint_transcript_with_schema_only_formatter(self):
+        import tempfile
+        from pathlib import Path
+        from types import SimpleNamespace
+
+        from langchain_core.messages import AIMessage, ToolMessage
+
+        from photon_tuner.agents.outputs import TopologyOutput
+        from photon_tuner.runtime.orchestrator import DeepAgentTuner
+
+        expected = TopologyOutput(
+            loss_budget_diagnosis="measured path loss",
+            dominant_loss_contributors=[],
+            power_budget_margin="positive measured margin",
+        )
+
+        class _Agent:
+            name = "topology_agent"
+
+            def invoke(self, _input, config=None):
+                raise RuntimeError("Unknown tool type: summarize_search_space")
+
+            def get_state(self, _config):
+                return SimpleNamespace(values={"messages": [
+                    AIMessage(content="", tool_calls=[{
+                        "name": "summarize_topology_evidence", "args": {}, "id": "c1",
+                    }]),
+                    ToolMessage(content='{"path_loss_db": 6.2}', tool_call_id="c1",
+                                name="summarize_topology_evidence"),
+                ]})
+
+        class _Formatter:
+            def invoke(self, _messages, config=None):
+                return expected
+
+        class _Model:
+            def with_structured_output(self, _schema):
+                return _Formatter()
+
+        tuner = object.__new__(DeepAgentTuner)
+        tuner._last_transcript = None
+        tuner._last_invoke_error = None
+        tuner.recursion_limit = 80
+        tuner.model = _Model()
+        tuner.llm_config = SimpleNamespace(retry_attempts=0, stream=False)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = tuner._invoke(_Agent(), Path(tmp), {"task": "topology"}, TopologyOutput)
+
+        self.assertEqual(out.loss_budget_diagnosis, expected.loss_budget_diagnosis)
+        self.assertIsNone(tuner._last_invoke_error)
+
     def test_degraded_error_fails_row_5_7_and_forces_rework(self):
         from photon_tuner.agents.evaluate import decide
 
@@ -569,15 +621,15 @@ class TestPromptToolsAreOnTheRoleSurface(unittest.TestCase):
         from photon_tuner.agents import builders, prompts
 
         known = self._tool_names()
-        # SOLUTION_PROMPT 较特殊：它把编辑工具命名为其输出动作的 *schema*
-        # （由编排器确定性应用），因此这些名字有意地从 SOLUTION_TOOLS 中省略。
+        # CANDIDATE_PROMPT 较特殊：它把编辑工具命名为其输出动作的 *schema*
+        # （由编排器确定性应用），因此这些名字有意地从 CANDIDATE_TOOLS 中省略。
         action_schema_tools = {"modify_hardware_parameter", "step_hardware_parameter", "modify_topology_template"}
         pairs = [
-            ("MODEL_TOOLS", prompts.MODEL_PROMPT),
+            ("BOTTLENECK_TOOLS", prompts.BOTTLENECK_PROMPT),
             ("ARCHITECTURE_TOOLS", prompts.ARCHITECTURE_PROMPT),
             ("TOPOLOGY_TOOLS", prompts.TOPOLOGY_PROMPT),
             ("DEVICE_TOOLS", prompts.DEVICE_PROMPT),
-            ("SOLUTION_TOOLS", prompts.SOLUTION_PROMPT),
+            ("CANDIDATE_TOOLS", prompts.CANDIDATE_PROMPT),
         ]
         for attr, prompt in pairs:
             surface = set(getattr(builders, attr))
@@ -812,22 +864,22 @@ class _TopoOut(BaseModel):
     circuit_recommendations: list = []
 
 
-def _sol(actions):
-    return SolutionOutput(strategy="s", actions=actions, link_edits=[], rationale="r")
+def _cand(actions):
+    return CandidateOutput(strategy="s", actions=actions, link_edits=[], rationale="r")
 
 
 class TestTopologyBinding(unittest.TestCase):
     def test_pass_without_recommendation(self):
-        check = topology_binding_check("solution", _sol([]), {})
+        check = topology_binding_check("candidate", _cand([]), {})
         self.assertEqual(check["status"], "pass")
         self.assertEqual(check["row"], 5.8)
 
     def test_pass_when_switch_proposed(self):
-        out = _sol([
+        out = _cand([
             {"name": "modify_topology_template",
              "arguments": {"core_kind": "mzi_mesh_clements"}},
         ])
-        check = topology_binding_check("solution", out, {
+        check = topology_binding_check("candidate", out, {
             "optical_analysis": {"recommended_template": "mzi_mesh_clements"},
             "current_core_kind": "dptc_crossbar",
             "mode": "analytic",
@@ -835,7 +887,7 @@ class TestTopologyBinding(unittest.TestCase):
         self.assertEqual(check["status"], "pass")
 
     def test_pass_when_template_already_current(self):
-        check = topology_binding_check("solution", _sol([]), {
+        check = topology_binding_check("candidate", _cand([]), {
             "optical_analysis": {"recommended_template": "mzi_mesh_clements"},
             "current_core_kind": "mzi_mesh_clements",
             "mode": "analytic",
@@ -845,7 +897,7 @@ class TestTopologyBinding(unittest.TestCase):
     def test_pass_for_illegal_recommendation(self):
         # 非法的推荐（不存在的模板名）不具约束力：topology 阶段自身的结构行已判定
         # 其失败，solution 不受其约束。
-        check = topology_binding_check("solution", _sol([]), {
+        check = topology_binding_check("candidate", _cand([]), {
             "optical_analysis": {"recommended_template": "bogus_template"},
             "current_core_kind": "dptc_crossbar",
             "mode": "real",
@@ -853,7 +905,7 @@ class TestTopologyBinding(unittest.TestCase):
         self.assertEqual(check["status"], "pass")
 
     def test_fail_when_switch_omitted(self):
-        check = topology_binding_check("solution", _sol([]), {
+        check = topology_binding_check("candidate", _cand([]), {
             "optical_analysis": {"recommended_template": "mzi_mesh_clements"},
             "current_core_kind": "dptc_crossbar",
             "mode": "analytic",
@@ -862,7 +914,7 @@ class TestTopologyBinding(unittest.TestCase):
         self.assertIn("no core_kind edit", check["detail"])
 
     def test_binding_row_is_hard_in_decide(self):
-        check = topology_binding_check("solution", _sol([]), {
+        check = topology_binding_check("candidate", _cand([]), {
             "optical_analysis": {"recommended_template": "mzi_mesh_clements"},
             "current_core_kind": "dptc_crossbar",
             "mode": "analytic",

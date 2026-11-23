@@ -67,7 +67,7 @@ PYTHONPATH=. .venv-agent/bin/python scripts/experiments/ablation_evidence.py
 
 **实测证据**(`ablation_evidence.py` → B):
 
-| paradigm | area_um2 | energy_pj | IL(dB) |
+| paradigm | area_mm2 | energy_mj | IL(dB) |
 |---|---|---|---|
 | crossbar 8×8 | 26,286,040 | 753,921 | 6.12 |
 | clements_mesh N=8 | 1,987,808 | 756,353 | 15.28 |

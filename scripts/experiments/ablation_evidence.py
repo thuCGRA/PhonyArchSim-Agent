@@ -119,9 +119,9 @@ def ablation_B():
     both.add(m_clem, meta={"core_kind": "mzi_mesh_clements"})
     both.add(m_reck, meta={"core_kind": "mzi_mesh_reck"})
 
-    print(f"{'paradigm':22} {'area_um2':>12} {'energy_pj':>12} {'IL_dB':>8}")
+    print(f"{'paradigm':22} {'area_mm2':>12} {'energy_mj':>12} {'IL_dB':>8}")
     for k, m in [("crossbar", m_crossbar), ("clements_mesh", m_clem), ("reck_mesh", m_reck)]:
-        print(f"{k:22} {m['area_um2']:12.1f} {m['energy_pj']:12.1f} {m['core_insertion_loss']:8.2f}")
+        print(f"{k:22} {m['area_mm2']:12.1f} {m['energy_mj']:12.1f} {m['core_insertion_loss']:8.2f}")
     print(f"[单范式 crossbar-only]  frontier size = {len(only.frontier())}  (kind = {sorted({p['meta']['core_kind'] for p in only.frontier()})})")
     print(f"[跨范式 crossbar+mesh]  frontier size = {len(both.frontier())}  (kind = {sorted({p['meta']['core_kind'] for p in both.frontier()})})")
     print("-> 跨范式把前沿从 1 点扩展到 2 点(crossbar 与 Clements 各占一端:面积↔IL 权衡)。")

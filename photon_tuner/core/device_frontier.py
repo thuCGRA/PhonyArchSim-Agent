@@ -91,7 +91,7 @@ def _tradeoff(device_type: str, body: Dict[str, Any]) -> Dict[str, Any]:
         out["energy_field"] = field
     area = _area(cfg)
     if area is not None:
-        out["area_um2"] = area
+        out["area_mm2"] = area
     return out
 
 
@@ -121,9 +121,9 @@ def summarize_device_frontier(
         excluded = sorted(filt["excluded"].get(dt, []))
         tradeoffs = {n: _tradeoff(dt, variants[n]) for n in sorted(variants)}
         comparable = {
-            n: {"power": t.get("energy_cost"), "area": t.get("area_um2")}
+            n: {"power": t.get("energy_cost"), "area": t.get("area_mm2")}
             for n, t in tradeoffs.items()
-            if n in compatible and t.get("energy_cost") is not None and t.get("area_um2") is not None
+            if n in compatible and t.get("energy_cost") is not None and t.get("area_mm2") is not None
         }
         frontier, dominated = _frontier(comparable)
         result[dt] = {

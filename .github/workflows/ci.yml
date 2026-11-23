@@ -31,3 +31,30 @@ jobs:
 
       - name: Report coverage
         run: coverage report -m --skip-covered
+
+  real-simulator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make curl ca-certificates libgl1 libglib2.0-0t64
+      - name: Bootstrap both environments
+        run: bash scripts/env/bootstrap.sh
+      - name: Evaluate one iteration with the real simulator
+        run: |
+          .venv-agent/bin/python main.py --provider mock --workload vit_tiny \
+            --nn-model-factory tests.factory:build_vit_tiny --iterations 1 --output-root runs/ci-smoke
+          .venv-agent/bin/python - <<'PY'
+          import json
+          import math
+          from pathlib import Path
+          run = Path("runs/ci-smoke/run_iteration_001")
+          for step in ("iter_000", "iter_001"):
+              metrics = json.loads((run / step / "metrics.json").read_text())
+              assert math.isfinite(metrics["objective"]), (step, metrics["objective"])
+          schedule = json.loads((run / "iter_001/analysis/schedule.json").read_text())
+          assert schedule["mode"] == "serial", schedule
+          PY

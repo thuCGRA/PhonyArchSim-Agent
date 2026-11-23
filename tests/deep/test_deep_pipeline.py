@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from photon_tuner.toolbox.catalog import tool_descriptors
 from photon_tuner.common.io import read_json
 from photon_tuner.core.search_space import default_hardware, normalize_hardware_to_design_space
 from photon_tuner.llm.config import LLMConfig
@@ -40,13 +41,15 @@ class TestDeepPipeline(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tuner = _build_tuner(tmp)
             agents = tuner._build_agents()
-            self.assertEqual(set(agents), {"model", "architecture", "topology", "device", "solution", "evaluate"})
+            self.assertEqual(set(agents), {"bottleneck", "architecture", "topology", "device", "candidate", "evaluate"})
 
     def test_all_tools_registered(self):
         with tempfile.TemporaryDirectory() as tmp:
             tuner = _build_tuner(tmp)
             names = set(tuner.all_tools)
-            self.assertEqual(len(names), 28)  # 22 个工具箱工具 + 6 个拓扑工具
+            expected = {tool.name for tool in tool_descriptors()}
+            expected.update(skill.name for skill in tuner.skill_registry.list())
+            self.assertEqual(names, expected)
             self.assertIn("summarize_topology", names)
             self.assertIn("inspect_light_path", names)
             self.assertIn("list_topology_templates", names)
@@ -66,12 +69,12 @@ class TestDeepPipeline(unittest.TestCase):
             self.assertEqual(summary["iterations"], 2)
             # 五个阶段产物外加 trajectory。
             artifacts = sorted(p.name for p in Path(summary["run_dir"]).rglob("analysis/*.json"))
-            for name in ("model_level_result.json", "architecture_result.json",
-                         "topology_result.json", "device_result.json", "solution_proposal.json"):
+            for name in ("bottleneck_result.json", "architecture_result.json",
+                         "topology_result.json", "device_result.json", "candidate_proposal.json"):
                 self.assertIn(name, artifacts)
             self.assertTrue((Path(summary["run_dir"]) / "trajectory.json").exists())
             # 每个阶段都会写出自己的检查点门控报告（5 个检查点）。
-            for name in ("model_gate_report.json", "architecture_gate_report.json",
+            for name in ("bottleneck_gate_report.json", "architecture_gate_report.json",
                          "topology_gate_report.json", "device_gate_report.json",
                          "gate_report.json"):
                 self.assertTrue((Path(summary["run_dir"]) / "iter_002" / "analysis" / name).exists())
@@ -81,7 +84,7 @@ class TestDeepPipeline(unittest.TestCase):
                 .glob("*_gate_report_first_attempt.json")
             )
             self.assertTrue(first_attempts)
-            self.assertIn("model_gate_report_first_attempt.json", first_attempts)
+            self.assertIn("bottleneck_gate_report_first_attempt.json", first_attempts)
             # 假模型不产生工具记录，因此第 4 行在每个阶段都会失败。每轮重执行
             # 预算（max_stage_rework=3）在四个分析阶段间共享，求解阶段则拥有独立的
             # max_gate_retries=2 重新提议额度。
@@ -91,7 +94,7 @@ class TestDeepPipeline(unittest.TestCase):
             # 全轮重执行预算被遵守：每迭代 <=3（分析阶段）+ <=2（求解）。
             self.assertLessEqual(summary["rework_total"], 5 * summary["iterations"])
             # 协调器的跨层一致性依据被持久化。
-            proposal = read_json(Path(summary["run_dir"]) / "iter_002" / "analysis" / "solution_proposal.json")
+            proposal = read_json(Path(summary["run_dir"]) / "iter_002" / "analysis" / "candidate_proposal.json")
             self.assertIn("coupling_rationale", proposal)
 
     def test_deterministic_across_runs(self):

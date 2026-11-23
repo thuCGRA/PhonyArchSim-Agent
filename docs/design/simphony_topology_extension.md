@@ -61,7 +61,7 @@ PCM=positive/positive/full→I=4、WDM=full/full/full→I=1），经 `.venv-simu
    三类拓扑统一为“单神经元点积”。这是对 PCM 交叉开关（2D 阵列）与 WDM 链路的一阶结构建模；
    `matrix_height=1` 明确标记其向量语义。**吞吐归一化已实现**：工作负载循环按
    `[tiles, cores, matrix_height, matrix_width]` 重算（`workload_arch_context` + `build_workload`），Pareto 归档轴
-   改为 `pJ_per_mac`（每 MAC 能耗）+ `area_um2_per_mac_per_s`（单位吞吐面积）+ `latency_s` +
+   改为 `fJ_per_mac`（每 MAC 能耗）+ `area_mm2_per_mac_per_ms`（单位吞吐面积）+ `latency_ms` +
    `core_insertion_loss`，使向量与矩阵阵列在吞吐口径下可比（见 §5）。
 6. **TeMPO 不注册为独立拓扑**：它的时域复用是 `dptc_crossbar` 的 `temporal_accum` 轴、
    慢光 EOM 是 device 维度的 `SL_MZM` 选型，二者都无需新 core_kind。曾用 `tempo_crossbar`

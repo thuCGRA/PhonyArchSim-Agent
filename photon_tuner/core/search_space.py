@@ -54,12 +54,17 @@ from photon_tuner.core.topology import (
 from photon_tuner.core.topology_space import (
     COUPLING_MATRIX,
     CORE_KINDS,
+    FAMILY_LABELS,
+    WEIGHT_ARRAY_CORE_KINDS,
     coerce_forced_values,
+    core_family,
+    mode_status,
     default_core_kind_candidates,
     default_node_kind_candidates,
     forced_value_violations,
     is_param_effective,
     param_status,
+    validate_weight_bank_groups,
 )
 
 # --------------------------------------------------------------------------- #
@@ -125,6 +130,145 @@ LAYERED_DESIGN_SPACE: Dict[str, Any] = load_search_space()
 
 
 # --------------------------------------------------------------------------- #
+# 参数方向性知识：每个可搜索参数**主要**沿哪个因子移动。
+#
+# 为什么需要这张表：目标是对数可加的乘积，因此"改一个旋钮会让哪一项往哪走、
+# 大致按什么比例"是提案质量的决定性信息。传统基线靠逐个尝试偶然获得这种知识，
+# 而 LLM 只能凭先验猜——实测它会选出"能耗与延时都变好、但面积涨 45%"的提案，
+# 净效果反而是退步。这张表把可查的领域知识显式交给智能体。
+#
+# 每条只写**方向与主导因子**，不写精确系数（精确值必须来自仿真）。
+# --------------------------------------------------------------------------- #
+
+PARAM_EFFECT_NOTES: Dict[str, Dict[str, str]] = {
+    "tiles": {
+        "scales": "device count (linear), area (linear)",
+        "direction": "more tiles -> more parallel cores -> shorter latency, but area and "
+                     "static energy grow ~linearly with the instance count",
+        "caveat": "halving tiles halves area but roughly doubles latency: under the product "
+                  "objective this is usually a net loss, not a win",
+    },
+    "cores_per_tile": {
+        "scales": "device count (linear), area (linear)",
+        "direction": "same tradeoff as tiles: parallelism up, area up",
+        "caveat": "same as tiles; do not shrink it expecting a free area win",
+    },
+    "core_height": {
+        "scales": "per-core device count, area (piecewise-linear)",
+        "direction": "larger array -> more MAC parallelism -> lower latency per layer, area up",
+        "caveat": "crossbar only; superseded by mesh_rank in mesh families",
+    },
+    "core_width": {
+        "scales": "per-core device count, area",
+        "direction": "same as core_height",
+        "caveat": "crossbar only",
+    },
+    "num_wavelength": {
+        "scales": "optical parallelism (wavelengths), laser split ratio, area of WDM parts",
+        "direction": "more wavelengths -> more parallel MACs per core -> lower latency, "
+                     "but insertion loss and laser power per unit rise",
+        "caveat": "forced to 1 for mesh / weight-array families",
+    },
+    "work_freq": {
+        "scales": "clock only; no device count change",
+        "direction": "higher clock -> lower latency, no area cost; energy per MAC roughly flat, "
+                     "static power up",
+        "caveat": "hard ceiling = min(MZM symbol rate, DAC/ADC sample rate); values above it are "
+                  "clamped, so they are indistinguishable",
+    },
+    "dataflow": {
+        "scales": "buffer/reuse pattern; changes memory traffic",
+        "direction": "affects which operand stays on chip -> memory energy and latency",
+        "caveat": "fixed to weight_stationary for mesh / weight-array families",
+    },
+    "precision_in_bit": {
+        "scales": "converter (DAC) energy and area",
+        "direction": "fewer bits -> lower DAC energy/area; may raise required laser power",
+        "caveat": "must satisfy in_bit <= dac.prec",
+    },
+    "precision_w_bit": {
+        "scales": "optical core quantisation, weight encoding",
+        "direction": "fewer bits -> smaller/cheaper core, some accuracy loss",
+        "caveat": "no direct area linearity; measure it",
+    },
+    "precision_out_bit": {
+        "scales": "ADC energy and area",
+        "direction": "fewer bits -> lower ADC energy/area",
+        "caveat": "must satisfy out_bit <= adc.prec",
+    },
+    "hbm_bandwidth": {
+        "scales": "DRAM bandwidth; no device count change on chip",
+        "direction": "higher bandwidth -> lower HBM access latency, slightly higher DRAM energy",
+        "caveat": "does not change PIC/RF_EIC area; off-chip cost only",
+    },
+    "glb1_cache_size": {
+        "scales": "SRAM array area (roughly linear in size)",
+        "direction": "larger cache -> fewer DRAM refills -> lower memory latency and HBM energy, "
+                     "but SRAM area and leakage grow ~linearly",
+        "caveat": "under the product objective the area term usually dominates a cache doubling",
+    },
+    "glb2_cache_size": {
+        "scales": "SRAM array area (roughly linear in size)",
+        "direction": "same as glb1_cache_size",
+        "caveat": "same area-dominance caveat as glb1",
+    },
+    "rf_cache_size": {
+        "scales": "register-file area (roughly linear in size)",
+        "direction": "same as glb1_cache_size, at the smallest hierarchy level",
+        "caveat": "same area-dominance caveat",
+    },
+    "core_kind": {
+        "scales": "core/netlist topology; changes device mix fundamentally",
+        "direction": "template switch: changes device counts, insertion loss, and which other "
+                     "parameters remain searchable",
+        "caveat": "must be an evaluable template; triggers coupling re-validation",
+    },
+    "node_kind": {
+        "scales": "node-level device set",
+        "direction": "paired with core_kind; changes node cost and IL",
+        "caveat": "must belong to the core's compatible set",
+    },
+    "mesh_rank": {
+        "scales": "MZI mesh transform order or WDM array parallel weight count",
+        "direction": "changes device counts and workload partitioning according to the template",
+        "caveat": "DPTC crossbar instead uses separately configured height, width and wavelength count",
+    },
+    "weight_bank_groups": {
+        "scales": "number of parallel MRR bank readout chains at fixed total wavelength count",
+        "direction": "two groups split the wavelengths equally and add a digital partial-sum reduction",
+        "caveat": "MRR weight bank only; a two-group design requires an even total wavelength count and real evaluation",
+    },
+    "sharing_policy": {
+        "scales": "ADC/TIA instance sharing",
+        "direction": "more sharing -> fewer converters/amplifiers -> lower area and energy, "
+                     "but more serialisation -> higher latency",
+        "caveat": "enabled for DPTC and MZI meshes; weight arrays retain their own scaling rules",
+    },
+    "temporal_accum": {
+        "scales": "time-multiplexing depth of the accumulation loop",
+        "direction": "deeper accumulation -> fewer spatial passes -> lower latency, more "
+                     "accumulator state",
+        "caveat": "interacts with switch-reconfiguration time",
+    },
+    "laser_distribution": {
+        "scales": "laser power distribution factor",
+        "direction": "changes required laser power -> whole-chain energy",
+        "caveat": "H*W and H*W*N coincide when num_wavelength is forced to 1",
+    },
+    "laser_source": {
+        "scales": "laser instance type (on-chip vs off-chip)",
+        "direction": "changes laser wall-plug efficiency, area, and thermal load",
+        "caveat": "instance-level switch, not a library variant",
+    },
+    "splitter_kind": {
+        "scales": "splitter instance type at the existing netlist position",
+        "direction": "changes splitter IL and area",
+        "caveat": "instance-level switch",
+    },
+}
+
+
+# --------------------------------------------------------------------------- #
 # 声明式分层规格（默认值；可从 JSON 加载/覆盖）。
 # --------------------------------------------------------------------------- #
 
@@ -158,6 +302,31 @@ def _core_kind_of(hardware: Optional[Dict[str, Any]]) -> Optional[str]:
     topo = ((hardware.get("arch") or {}).get("topology") or {})
     value = topo.get("core_kind")
     return str(value) if value is not None else None
+
+
+def _parse_weight_bank_groups(value: Any) -> int:
+    if isinstance(value, bool) or value not in (1, 2, "1", "2"):
+        raise ValueError("weight_bank_groups must be 1 or 2")
+    return int(value)
+
+
+def _clear_inherited_weight_bank_groups(topology: Dict[str, Any]) -> None:
+    """Drop the MRR-specific setting when an edit switches to another template."""
+    if topology.get("core_kind") != "mrr_weight_bank":
+        topology.pop("weight_bank_groups", None)
+
+
+def _weight_bank_group_candidates(hardware: Dict[str, Any], candidates: List[Any]) -> List[Any]:
+    arch = hardware.get("arch", {}) or {}
+    topology = arch.get("topology", {}) or {}
+    if topology.get("core_kind") != "mrr_weight_bank":
+        return []
+    trial = {"arch": {**arch, "topology": {**topology, "weight_bank_groups": 2}}}
+    try:
+        validate_weight_bank_groups(trial)
+    except ValueError:
+        return [value for value in candidates if value == 1]
+    return candidates
 
 
 class DesignSpace:
@@ -205,6 +374,7 @@ class DesignSpace:
         self,
         param: str,
         hardware: Optional[Dict[str, Any]] = None,
+        mode: Optional[str] = None,
     ) -> List[Any]:
         """返回该参数在 ``hardware`` 当前拓扑族下的**可搜索**候选。
 
@@ -215,22 +385,121 @@ class DesignSpace:
         if hardware is None:
             return self.candidates(param)
         core_kind = _core_kind_of(hardware)
-        if not is_param_effective(param, core_kind):
+        # A topology template is a joint (core, node) choice.  In the current
+        # registry every core has exactly one legal node, so node_kind is a
+        # template property rather than an independent search axis.
+        if param == "core_kind":
+            return [
+                str(candidate) for candidate in self.candidates(param)
+                if str(candidate) in CORE_KINDS
+                and CORE_KINDS[str(candidate)].get("evaluable")
+                and (mode != "real" or CORE_KINDS[str(candidate)].get("real"))
+            ]
+        if param == "node_kind":
+            allowed = list(COUPLING_MATRIX.get(str(core_kind), {}).get("node_kinds", []))
+            legal = [str(c) for c in self.candidates(param) if str(c) in allowed]
+            return legal if len(legal) > 1 else []
+        if not is_param_effective(param, core_kind, mode):
             return []
+        if param == "weight_bank_groups":
+            return _weight_bank_group_candidates(hardware, self.candidates(param))
+        groups = _lookup(hardware, ("arch", "topology", "weight_bank_groups"))
+        if param == "mesh_rank" and core_kind == "mrr_weight_bank" and groups == 2:
+            return [rank for rank in self.candidates(param) if rank >= 2 and rank % 2 == 0]
         return self.candidates(param)
 
     def param_effectiveness(
         self,
         param: str,
         hardware: Optional[Dict[str, Any]] = None,
+        mode: Optional[str] = None,
     ) -> Dict[str, Any]:
         """返回该参数在当前拓扑族下的状态与可操作建议（供工具/闸门使用）。"""
-        return param_status(param, _core_kind_of(hardware) if hardware is not None else None)
+        return param_status(
+            param,
+            _core_kind_of(hardware) if hardware is not None else None,
+            mode,
+        )
+
+    def scope_table(
+        self,
+        core_kind: Optional[str] = None,
+        mode: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """**完整**设计空间在 ``core_kind`` 所属拓扑族下的可见性表。
+
+        与 :func:`topology_space.param_scope_table` 的区别：后者只遍历
+        ``PARAM_SCOPE`` 中显式声明适用性的参数，其余参数对它而言是隐式的
+        ``effective``。若把它直接当成"可搜索参数清单"返回给智能体，会让
+        ``tiles`` / ``cores_per_tile`` / 精度 / 带宽 / 缓存 / ``work_freq`` /
+        ``sharing_policy`` / ``temporal_accum`` / ``laser_distribution`` /
+        ``core_kind`` 等参数凭空消失——智能体据此会以为架构层只剩 4 根旋钮、
+        拓扑层一根都没有。
+
+        本方法以**设计空间本身**为准逐一枚举，``PARAM_SCOPE`` 只用于覆盖已声明的
+        例外；未声明的参数默认 ``effective``。
+        """
+        table: Dict[str, Any] = {}
+        for layer_name, param, spec in self._iter_params():
+            status = param_status(param, core_kind, mode)
+            if param == "node_kind":
+                allowed = list(COUPLING_MATRIX.get(str(core_kind), {}).get("node_kinds", []))
+                if len(allowed) == 1:
+                    status = dict(status)
+                    status.update({
+                        "status": "determined_by_core_kind",
+                        "reason": "当前每个 core 模板只注册一个兼容 node；node_kind 随 core_kind 自动确定，不是独立搜索轴。",
+                        "action": "通过切换 core_kind 选择一组合法的 core/node 模板。",
+                    })
+            entry: Dict[str, Any] = {
+                "layer": layer_name,
+                "status": status["status"],
+                "family": status["family"],
+            }
+            for key in ("dimension", "edit_tool"):
+                if key in spec:
+                    entry[key] = spec[key]
+            for key in ("reason", "action", "by", "implementable"):
+                if key in status:
+                    entry[key] = status[key]
+            if entry["status"] == "effective":
+                candidates = self.effective_candidates(
+                    param,
+                    {"arch": {"topology": {"core_kind": core_kind}}},
+                    mode,
+                ) if param in {"core_kind", "node_kind"} else self.candidates(param)
+                entry["candidates"] = candidates
+                entry["count"] = len(candidates)
+            elif param == "node_kind":
+                entry["candidates"] = list(COUPLING_MATRIX.get(str(core_kind), {}).get("node_kinds", []))
+                entry["count"] = len(entry["candidates"])
+            table[param] = entry
+        family = core_family(core_kind)
+        return {
+            "core_kind": str(core_kind or ""),
+            "family": family,
+            "family_label": FAMILY_LABELS.get(family, family),
+            "params": table,
+        }
+
+    def searchable_by_layer(
+        self,
+        core_kind: Optional[str] = None,
+        mode: Optional[str] = None,
+    ) -> Dict[str, List[str]]:
+        """按层归组当前拓扑下生效的参数。"""
+        grouped: Dict[str, List[str]] = {}
+        for param, entry in self.scope_table(core_kind, mode)["params"].items():
+            if entry["status"] != "effective":
+                continue
+            grouped.setdefault(str(entry["layer"]), []).append(param)
+        return {layer: sorted(names) for layer, names in grouped.items()}
 
     # -- 硬件读写 ----------------------------------------------------------- #
 
     def get(self, hw: Dict[str, Any], param: str) -> Any:
-        return _lookup(hw, self.param_spec(param)["map"])
+        value = _lookup(hw, self.param_spec(param)["map"])
+        return 1 if param == "weight_bank_groups" and value is None else value
 
     def set(self, hw: Dict[str, Any], param: str, value: Any) -> None:
         _assign(hw, self.param_spec(param)["map"], value)
@@ -239,8 +508,15 @@ class DesignSpace:
 
     def _device_cfg(self, hw: Dict[str, Any], device_type: str) -> Dict[str, Any]:
         devices = hw.get("devices", {})
-        name = (devices.get("core", {}).get(device_type)
-                or devices.get("node", {}).get(device_type))
+        kind = _core_kind_of(hw) or "dptc_crossbar"
+        if str(kind).startswith("mzi_mesh_"):
+            bank = devices.get("mesh", {}) or {}
+        elif kind in {"mrr_weight_bank", "pcm_crossbar", "wdm_link"}:
+            bank = devices.get("weight_array", {}) or {}
+        else:
+            bank = devices
+        name = (bank.get("core", {}).get(device_type)
+                or bank.get("node", {}).get(device_type))
         if not name:
             return {}
         variant = self.device_catalog.get(device_type, {}).get(str(name), {})
@@ -279,6 +555,25 @@ class DesignSpace:
     def violations(self, hw: Dict[str, Any]) -> List[Dict[str, Any]]:
         """返回硬件字典违反的可行性约束。"""
         out: List[Dict[str, Any]] = []
+        topo = ((hw.get("arch") or {}).get("topology") or {})
+        core_kind = str(topo.get("core_kind", "dptc_crossbar"))
+        node_kind = str(topo.get("node_kind", "dode"))
+        allowed_nodes = COUPLING_MATRIX.get(core_kind, {}).get("node_kinds", [])
+        if core_kind not in CORE_KINDS:
+            out.append({
+                "param": "core_kind",
+                "constraint": "core_kind in topology registry",
+                "current": core_kind,
+                "message": f"unknown core_kind {core_kind!r}",
+            })
+        elif node_kind not in allowed_nodes:
+            out.append({
+                "param": "node_kind",
+                "constraint": f"node_kind in COUPLING_MATRIX[{core_kind!r}]",
+                "current": node_kind,
+                "limit": list(allowed_nodes),
+                "message": f"node_kind {node_kind!r} is incompatible with core_kind {core_kind!r}; legal: {allowed_nodes}",
+            })
         core = hw.get("arch", {}).get("optical_core", {})
         precision = core.get("precision", {})
 
@@ -374,7 +669,19 @@ class DesignSpace:
         """将每个可搜索参数钳位到候选值并施加可行性约束。"""
         result = copy.deepcopy(hw)
         for _, param, _ in self._iter_params():
-            self._clamp_to_candidates(result, param)
+            if param != "weight_bank_groups":
+                self._clamp_to_candidates(result, param)
+
+        # Core and node are stored as separate fields for compatibility with
+        # SimPhony, but the search decision is the registered template pair.
+        topo = ((result.get("arch") or {}).get("topology") or {})
+        core_kind = str(topo.get("core_kind", "dptc_crossbar"))
+        allowed_nodes = COUPLING_MATRIX.get(core_kind, {}).get("node_kinds", [])
+        if allowed_nodes and topo.get("node_kind") not in allowed_nodes:
+            topo["node_kind"] = allowed_nodes[0]
+        if core_kind == "mrr_weight_bank" and self.layer_of("weight_bank_groups") is not None:
+            topo.setdefault("weight_bank_groups", 1)
+        validate_weight_bank_groups(result)
 
         # 可行性：钳位到不超过最紧器件上限的最大候选值
         # （对应 real SimPhony 的断言，而非直接报错）。
@@ -407,7 +714,11 @@ class DesignSpace:
     def step(self, hw: Dict[str, Any], param: str, direction: int) -> Dict[str, Any]:
         """将某个参数步进到下一个/上一个候选值（并归一化）。"""
         result = copy.deepcopy(hw)
-        candidates = self.candidates(param)
+        candidates = (
+            self.effective_candidates(param, result)
+            if param in {"weight_bank_groups", "mesh_rank"}
+            else self.candidates(param)
+        )
         if not candidates:
             return result
         spec = self.param_spec(param)
@@ -419,6 +730,8 @@ class DesignSpace:
                 index = [str(c) for c in candidates].index(current)
                 index = max(0, min(len(candidates) - 1, index + direction))
                 self.set(result, param, candidates[index])
+            if param == "core_kind":
+                _clear_inherited_weight_bank_groups(result["arch"]["topology"])
             return self.normalize(result)
         ordered = sorted(set(candidates), key=lambda v: float(v))
         try:
@@ -441,10 +754,15 @@ class DesignSpace:
             param = str(update.get("parameter", ""))
             value = update.get("value")
             spec = self.param_spec(param)  # 未知参数时抛出 KeyError
-            if spec.get("kind") == "enum":
+            if param == "weight_bank_groups":
+                self.set(result, param, _parse_weight_bank_groups(value))
+            elif spec.get("kind") == "enum":
                 self.set(result, param, str(value))
             else:
                 self.set(result, param, int(round(float(value))))
+        names = {update.get("parameter") for update in updates}
+        if "core_kind" in names and "weight_bank_groups" not in names:
+            _clear_inherited_weight_bank_groups(result["arch"]["topology"])
         return self.normalize(result)
 
     # -- 自适应细化 --------------------------------------------------------- #
@@ -490,6 +808,8 @@ class DesignSpace:
             rows.append({
                 "layer": layer_name,
                 "parameter": param_name,
+                "dimension": spec.get("dimension"),
+                "edit_tool": spec.get("edit_tool"),
                 "kind": spec.get("kind"),
                 "values": spec.get("values"),
                 "step": spec.get("step"),
@@ -530,6 +850,7 @@ def build_design_space(
             "sharing_policy": "sharing_policy",
             "temporal_accum": "temporal_accum",
             "laser_distribution": "laser_distribution",
+            "weight_bank_groups": "weight_bank_groups",
         }
         for layer in spec["layers"].values():
             for param, p_spec in (layer.get("params") or {}).items():
@@ -606,6 +927,7 @@ ARCH_PARAM_KEYS = [
     "core_kind",
     "node_kind",
     "mesh_rank",
+    "weight_bank_groups",
 ]
 
 # 存储层级参数名 -> (存储层级, 该层级字典中的字段)。
@@ -683,7 +1005,35 @@ def default_hardware() -> Dict[str, Any]:
     ``arch.optical_core``（crossbar 几何/精度/时钟）、``arch.topology``
     （共享/时域累加/激光分布）与 ``arch.memory``，外加顶层的 ``devices`` 表
     用于库变体选择。
+
+    **数值基线以 ``configs/initial_hardware.json`` 为准**：本函数先构造结构骨架
+    （含 JSON 里不写的派生字段，如 ``core_kind`` / ``mesh_rank`` 与三套器件表），
+    再用 JSON 做深度覆盖。历史教训——两处各自硬编码 12x12x12/5 GHz/485 KB，
+    改一处忘另一处会让"默认基线"和配置文件静默分叉。
     """
+    baseline = _DEFAULT_HARDWARE_STRUCTURE()
+    override_path = CONFIG_ROOT / "initial_hardware.json"
+    try:
+        with open(override_path, "r", encoding="utf-8") as handle:
+            override = json.load(handle)
+    except (OSError, ValueError):
+        return baseline
+    return _deep_merge(baseline, override)
+
+
+def _deep_merge(base: Dict[str, Any], override: Mapping[str, Any]) -> Dict[str, Any]:
+    """把 ``override`` 深度合并进 ``base`` 的副本（override 优先）。"""
+    merged = copy.deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, Mapping) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = copy.deepcopy(value)
+    return merged
+
+
+def _DEFAULT_HARDWARE_STRUCTURE() -> Dict[str, Any]:
+    """``default_hardware()`` 的结构骨架（不含被 JSON 覆盖的数值基线）。"""
     return {
         "arch": {
             "system": {
@@ -882,6 +1232,17 @@ def normalize_hardware_to_design_space(
             current_mesh = float(mesh_candidates[0])
         topo["mesh_rank"] = min(mesh_candidates, key=lambda c: abs(float(c) - current_mesh))
 
+    # Treat core_kind/node_kind as a registered template pair.  A mismatched
+    # pair must never be silently passed to SimPhony as if it were a valid
+    # point; when a template changes, select its sole registered node.
+    allowed_nodes = COUPLING_MATRIX.get(str(topo.get("core_kind", "")), {}).get("node_kinds", [])
+    if allowed_nodes and topo.get("node_kind") not in allowed_nodes:
+        topo["node_kind"] = allowed_nodes[0]
+    if topo.get("core_kind") == "mrr_weight_bank" and arch_space.get("weight_bank_groups"):
+        topo.setdefault("weight_bank_groups", 1)
+    validate_weight_bank_groups(result)
+    result = coerce_forced_values(result)
+
     return result
 
 
@@ -899,6 +1260,12 @@ def step_arch_parameter(
     oc = arch["optical_core"]
     topo = arch["topology"]
 
+    if parameter == "weight_bank_groups":
+        candidates = _weight_bank_group_candidates(result, arch_space.get(parameter, []))
+        if candidates:
+            topo[parameter] = _step_value(topo.get(parameter, 1), candidates, direction)
+        return result
+
     mapping = {
         "tiles": ("tiles", system, arch_space.get("tiles", [])),
         "cores_per_tile": ("cores_per_tile", system, arch_space.get("cores_per_tile", [])),
@@ -910,6 +1277,8 @@ def step_arch_parameter(
     }
     if parameter in mapping:
         key, target, candidates = mapping[parameter]
+        if parameter == "mesh_rank" and topo.get("weight_bank_groups") == 2:
+            candidates = [rank for rank in candidates if rank >= 2 and rank % 2 == 0]
         if not candidates:
             return result
         target[key] = _step_value(target.get(key), candidates, direction)
@@ -959,7 +1328,9 @@ def step_arch_parameter(
                 index = [str(c) for c in candidates].index(current)
                 index = max(0, min(len(candidates) - 1, index + direction))
                 topo[parameter] = candidates[index]
-        return result
+        if parameter == "core_kind":
+            return switch_topology_template(result, str(topo[parameter]))
+        return normalize_hardware_to_design_space(result, search_space)
 
     raise ValueError(f"Unknown architecture parameter: {parameter}")
 
@@ -1004,11 +1375,16 @@ def modify_arch_parameter(
             topo[parameter] = str(value)
         elif parameter == "mesh_rank":
             topo["mesh_rank"] = _as_int(value)
+        elif parameter == "weight_bank_groups":
+            topo[parameter] = _parse_weight_bank_groups(value)
         elif parameter in {"core_kind", "node_kind"}:
             topo[parameter] = str(value)
         else:
             raise ValueError(f"Unknown architecture parameter: {parameter}")
 
+    names = {update.get("parameter") for update in updates}
+    if "core_kind" in names and "weight_bank_groups" not in names:
+        _clear_inherited_weight_bank_groups(topo)
     return normalize_hardware_to_design_space(result, search_space)
 
 
@@ -1046,6 +1422,10 @@ def switch_topology_template(
     topo = result["arch"].setdefault("topology", {})
     topo["core_kind"] = core_kind
     topo["node_kind"] = allowed[0]
+    _clear_inherited_weight_bank_groups(topo)
+    if core_kind == "mrr_weight_bank":
+        topo.setdefault("weight_bank_groups", 1)
+    validate_weight_bank_groups(result)
     # 切换后必须立刻对齐该拓扑族的物理强制值，否则设计点会保留 crossbar 的
     # dataflow / 阵列宽度 / 波长数——这三者在网格与权重阵列下并不存在，
     # 会产出一个"声明值从未被仿真"的设计点。
@@ -1074,13 +1454,52 @@ def set_device_choice(
             f"{device_type!r} (idealized/unsourced); choose another variant"
         )
     result = materialize_hardware(hardware)
+    core_kind = str(result.get("arch", {}).get("topology", {}).get("core_kind", "dptc_crossbar"))
+    if core_kind.startswith("mzi_mesh_"):
+        active_bank = "mesh"
+    elif core_kind in WEIGHT_ARRAY_CORE_KINDS:
+        active_bank = "weight_array"
+    else:
+        active_bank = None
+
+    if level.startswith("mesh_") and active_bank != "mesh":
+        raise ValueError(f"{level} is inactive for core template {core_kind!r}")
+    if level.startswith("weight_array_") and active_bank != "weight_array":
+        raise ValueError(f"{level} is inactive for core template {core_kind!r}")
+    if level in {"core", "node"} and active_bank is not None:
+        raise ValueError(
+            f"{level} is inactive for core template {core_kind!r}; "
+            f"use {active_bank}_{level}"
+        )
+
+    if level.startswith("mesh_"):
+        target_bank = result["devices"].get("mesh", {})
+        sublevel = level[len("mesh_"):]
+    elif level.startswith("weight_array_"):
+        target_bank = result["devices"].get("weight_array", {})
+        sublevel = level[len("weight_array_"):]
+    else:
+        target_bank = result["devices"]
+        sublevel = level
+    if device_type not in (target_bank.get(sublevel, {}) or {}):
+        raise ValueError(
+            f"device type {device_type!r} is not a slot in active template "
+            f"{core_kind!r} at level {level!r}"
+        )
+
     if level in {"core", "node"}:
         result["devices"][level][device_type] = device_name
     elif level in {"mesh_core", "mesh_node"}:
         sub = level.replace("mesh_", "")
         result["devices"]["mesh"][sub][device_type] = device_name
+    elif level in {"weight_array_core", "weight_array_node"}:
+        sub = level.replace("weight_array_", "")
+        result["devices"]["weight_array"][sub][device_type] = device_name
     else:
-        raise ValueError(f"level must be 'core', 'node', 'mesh_core' or 'mesh_node', got {level!r}")
+        raise ValueError(
+            "level must be 'core', 'node', 'mesh_core', 'mesh_node', "
+            f"'weight_array_core' or 'weight_array_node', got {level!r}"
+        )
     return result
 
 
@@ -1106,6 +1525,8 @@ def hardware_summary(hardware: Mapping[str, Any]) -> Dict[str, Any]:
             "temporal_accum": topo.get("temporal_accum"),
             "laser_distribution": topo.get("laser_distribution"),
             "mesh_rank": topo.get("mesh_rank"),
+            **({"weight_bank_groups": topo.get("weight_bank_groups", 1)}
+               if topo.get("core_kind") == "mrr_weight_bank" else {}),
             "dataflow": system.get("dataflow"),
             "memory": {level: dict(cfg) for level, cfg in arch.get("memory", {}).items()},
         },

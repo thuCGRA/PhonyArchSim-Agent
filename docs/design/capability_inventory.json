@@ -1,0 +1,1045 @@
+{
+  "summary": {
+    "tool_count": 40,
+    "agent_visible_tool_count": 34,
+    "atomic_skill_count": 15,
+    "workflow_count": 3,
+    "tool_access": {
+      "control": 1,
+      "read": 33,
+      "write": 6
+    },
+    "tool_categories": {
+      "design_space": 2,
+      "devices": 4,
+      "editing": 4,
+      "reports": 14,
+      "simulation": 2,
+      "state_memory": 8,
+      "topology": 5,
+      "validation": 1
+    },
+    "skill_categories": {
+      "decision": 3,
+      "diagnosis": 6,
+      "learning": 2,
+      "scheduling": 1,
+      "verification": 3
+    }
+  },
+  "tools": [
+    {
+      "name": "searchable_parameters",
+      "category": "design_space",
+      "access": "read",
+      "source": "topology_tools",
+      "description": "Report effective and disabled parameters for this topology.",
+      "domains": [
+        "architecture",
+        "topology",
+        "device"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_search_space",
+      "category": "design_space",
+      "access": "read",
+      "source": "support_tools",
+      "description": "List every layered design parameter, its candidates, layer and constraints.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "inspect_device_config",
+      "category": "devices",
+      "access": "read",
+      "source": "device_tools",
+      "description": "Show the configurable cfgs of one device variant. device_type is the category (e.g. mzm); device_name is a variant from list_device_candidates (e.g. LT_MZM).",
+      "domains": [
+        "device"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "list_device_candidates",
+      "category": "devices",
+      "access": "read",
+      "source": "device_tools",
+      "description": "List available device variants per device type. device_type is a category (e.g. mzm, photodetector); omit it to list all types.",
+      "domains": [
+        "device"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_device_frontier",
+      "category": "devices",
+      "access": "read",
+      "source": "device_tools",
+      "description": "Summarize the Pareto frontier of real device variants per device type. Reports, for each type: compatible variants and their reported speed_GHz/prec_bit/energy_cost+energy_unit/area_mm2, the non-dominated energy/area frontier, dominated variants, and variants excluded by the current work_freq/precision coupling. The energy metric is type-specific: mzm uses efficiency (fJ/bit) and phase_shifter uses P_pi (mW), because their static power is 0; other types use power/dynamic_power (mW). Real reported values only — no interpolation. Pass device_type to restrict to one category (e.g. dac); omit to list all types.",
+      "domains": [
+        "device"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_device_provenance",
+      "category": "devices",
+      "access": "read",
+      "source": "support_tools",
+      "description": "Audit device variants as traceable, baseline or placeholder with source records.",
+      "domains": [
+        "device"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "modify_device_parameter",
+      "category": "editing",
+      "access": "write",
+      "source": "device_tools",
+      "description": "Select a library variant in the active core/node, mesh_core/mesh_node, or weight_array_core/weight_array_node slot.",
+      "domains": [
+        "device"
+      ],
+      "agent_visible": false
+    },
+    {
+      "name": "modify_hardware_parameter",
+      "category": "editing",
+      "access": "write",
+      "source": "analysis_tools",
+      "description": "Apply explicit optical-structure parameter updates.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": false
+    },
+    {
+      "name": "modify_topology_template",
+      "category": "editing",
+      "access": "write",
+      "source": "analysis_tools",
+      "description": "Switch the optical core to another topology template (core_kind), auto-aligning node_kind.",
+      "domains": [
+        "topology"
+      ],
+      "agent_visible": false
+    },
+    {
+      "name": "step_hardware_parameter",
+      "category": "editing",
+      "access": "write",
+      "source": "analysis_tools",
+      "description": "Step one optical-structure parameter to the next candidate.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": false
+    },
+    {
+      "name": "describe_metric_units",
+      "category": "reports",
+      "access": "read",
+      "source": "support_tools",
+      "description": "Authoritative units for simulator metrics and report fields.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "inspect_layer_details",
+      "category": "reports",
+      "access": "read",
+      "source": "analysis_tools",
+      "description": "Detailed workload and memory evidence for selected layers.",
+      "domains": [
+        "workload",
+        "architecture"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_area_breakdown",
+      "category": "reports",
+      "access": "read",
+      "source": "analysis_tools",
+      "description": "Per-device and per-chip-type area breakdown (um^2).",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_device_area_breakdown",
+      "category": "reports",
+      "access": "read",
+      "source": "device_tools",
+      "description": "Per-device area contribution (um^2), ranked high to low. Each row carries level (core/node), device_type, device_name, instance, count, chip_type and total_area_share (fraction of the total).",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_device_energy_breakdown",
+      "category": "reports",
+      "access": "read",
+      "source": "device_tools",
+      "description": "Per-device energy contribution (pJ), ranked high to low. Each row carries level (core/node), device_type, device_name, instance, count, chip_type and total_energy_share (fraction of the total), so the dominant energy consumer is directly visible.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_energy_breakdown",
+      "category": "reports",
+      "access": "read",
+      "source": "analysis_tools",
+      "description": "Per-device / per-chip-type compute energy plus per-level memory energy (HBM/GLB2/GLB1/RF) and its total.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_hardware_config",
+      "category": "reports",
+      "access": "read",
+      "source": "analysis_tools",
+      "description": "Compact summary of the current photonic architecture and device choices.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_insertion_loss",
+      "category": "reports",
+      "access": "read",
+      "source": "analysis_tools",
+      "description": "Node and core longest optical path insertion loss (dB).",
+      "domains": [
+        "topology",
+        "device"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_insertion_loss_detail",
+      "category": "reports",
+      "access": "read",
+      "source": "device_tools",
+      "description": "Node/core longest optical paths with per-component insertion loss. Returns node_path/core_path (the instance chain) plus node_path_detail/core_path_detail: one {instance, device_type, device_name, insertion_loss_dB} entry per component along that path, so you can attribute which component loses how many dB (and which dominates).",
+      "domains": [
+        "topology",
+        "device"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_layer_ranks",
+      "category": "reports",
+      "access": "read",
+      "source": "analysis_tools",
+      "description": "Rank layers by simulated latency / energy / area cost.",
+      "domains": [
+        "workload",
+        "architecture"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_metrics",
+      "category": "reports",
+      "access": "read",
+      "source": "analysis_tools",
+      "description": "Scalar latency / energy / area metrics and the combined objective.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_operator_groups",
+      "category": "reports",
+      "access": "read",
+      "source": "analysis_tools",
+      "description": "Aggregate cost by operator group (attention / qkv_projection / ffn / convolution / ...).",
+      "domains": [
+        "workload",
+        "architecture"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_topology_evidence",
+      "category": "reports",
+      "access": "read",
+      "source": "device_tools",
+      "description": "ONE-CALL topology evidence bundle: optical structure (incl. the device variants actually in use), the insertion-loss totals, the per-component core_component_loss / node_component_loss maps and core_path_detail / node_path_detail lists, plus power_budget_inputs carrying the laser (power, dBm) and photodetector (sensitivity, dBm) cfgs. Prefer this over several separate calls: it is all the loss and power-budget evidence the topology diagnosis needs.",
+      "domains": [
+        "topology",
+        "device"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_workload_features",
+      "category": "reports",
+      "access": "read",
+      "source": "support_tools",
+      "description": "Deterministic workload fingerprint: layer count, operator groups, cycles and size.",
+      "domains": [
+        "workload"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "evaluate_design",
+      "category": "simulation",
+      "access": "write",
+      "source": "support_tools",
+      "description": "HOST ONLY: run one expensive simulator evaluation for a complete hardware design point.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": false
+    },
+    {
+      "name": "preview_evaluation_schema",
+      "category": "simulation",
+      "access": "read",
+      "source": "support_tools",
+      "description": "Describe the simulator input, output and search-space contract without running an evaluation.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "commit_verified_case",
+      "category": "state_memory",
+      "access": "write",
+      "source": "support_tools",
+      "description": "HOST ONLY: persist one simulator-verified case and its before/after outcome.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": false
+    },
+    {
+      "name": "compare_search_states",
+      "category": "state_memory",
+      "access": "read",
+      "source": "analysis_tools",
+      "description": "Compare current / previous / best evaluated design points.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "retrieve_similar_cases",
+      "category": "state_memory",
+      "access": "read",
+      "source": "support_tools",
+      "description": "Retrieve top-k prior cases conditioned on bottleneck text and current hardware, including verified outcome labels.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "select_analysis_base",
+      "category": "state_memory",
+      "access": "control",
+      "source": "analysis_tools",
+      "description": "Select which evaluated design point downstream tools use.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_case_memory",
+      "category": "state_memory",
+      "access": "read",
+      "source": "support_tools",
+      "description": "Report total and objectively improved cases in the reusable case memory.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_design_identity",
+      "category": "state_memory",
+      "access": "read",
+      "source": "support_tools",
+      "description": "Compute the canonical hardware fingerprint and report whether it has already been evaluated.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_pareto_frontier",
+      "category": "state_memory",
+      "access": "read",
+      "source": "support_tools",
+      "description": "Return the evaluated non-dominated frontier and its physical minimize axes.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_schedule_signals",
+      "category": "state_memory",
+      "access": "read",
+      "source": "support_tools",
+      "description": "Read maturity and objective-improvement signals used by the deterministic workflow scheduler.",
+      "domains": [
+        "global"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "inspect_light_path",
+      "category": "topology",
+      "access": "read",
+      "source": "topology_tools",
+      "description": "Inspect the ordered optical path and selected device variants.",
+      "domains": [
+        "topology",
+        "device"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "inspect_topology_template",
+      "category": "topology",
+      "access": "read",
+      "source": "topology_tools",
+      "description": "Inspect one topology template and its required slots.",
+      "domains": [
+        "topology"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "list_topology_templates",
+      "category": "topology",
+      "access": "read",
+      "source": "topology_tools",
+      "description": "List legal topology templates and their coupling matrix.",
+      "domains": [
+        "topology"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_optical_structure",
+      "category": "topology",
+      "access": "read",
+      "source": "device_tools",
+      "description": "Full circuit-organisation snapshot: core_kind, node_kind, sharing_policy, temporal_accum, laser_distribution, plus geometry/wavelength/clock/precision/dataflow. Also reports the device variants actually in use (core_devices / node_devices / mesh_core_devices / mesh_node_devices), e.g. which laser (off_chip_laser vs on_chip_laser) and phase shifter are selected.",
+      "domains": [
+        "topology",
+        "device"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "summarize_topology",
+      "category": "topology",
+      "access": "read",
+      "source": "topology_tools",
+      "description": "Return every topology component and the ordered optical path.",
+      "domains": [
+        "topology"
+      ],
+      "agent_visible": true
+    },
+    {
+      "name": "validate_coupling",
+      "category": "validation",
+      "access": "read",
+      "source": "topology_tools",
+      "description": "Validate cross-layer coupling and physically forced values.",
+      "domains": [
+        "architecture",
+        "topology",
+        "device"
+      ],
+      "agent_visible": true
+    }
+  ],
+  "atomic_skills": [
+    {
+      "name": "assess_candidate_legality",
+      "goal": "判断当前候选设计是否满足跨层耦合约束",
+      "category": "verification",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "cross-layer violations"
+      ],
+      "tools": [
+        "validate_coupling"
+      ],
+      "decision_rule": "legal iff violations is empty",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "topology",
+        "candidate",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "assess_case_reusability",
+      "goal": "判断检索到的历史案例是否包含可复用的已验证改善",
+      "category": "learning",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "retrieval score and verified case outcome"
+      ],
+      "tools": [
+        "retrieve_similar_cases"
+      ],
+      "decision_rule": "reusable iff at least one retrieved case has outcome=improved",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "candidate",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "assess_design_novelty",
+      "goal": "判断当前设计点是否已经被评估",
+      "category": "verification",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "hardware fingerprint and evaluated set"
+      ],
+      "tools": [
+        "summarize_design_identity"
+      ],
+      "decision_rule": "novel iff fingerprint is not in the evaluated set",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "candidate",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "assess_memory_energy_dominance",
+      "goal": "判断当前设计是否由存储能耗主导",
+      "category": "diagnosis",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "compute and memory energy"
+      ],
+      "tools": [
+        "summarize_layer_ranks"
+      ],
+      "decision_rule": "memory_share >= threshold",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "bottleneck",
+        "architecture",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "assess_memory_maturity",
+      "goal": "判断案例记忆是否积累了足够的有效先验",
+      "category": "learning",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "improved case count"
+      ],
+      "tools": [
+        "summarize_case_memory"
+      ],
+      "decision_rule": "mature iff improved_case_count >= target",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "candidate",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "assess_objective_convergence",
+      "goal": "判断搜索目标是否在指定窗口内收敛",
+      "category": "scheduling",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "objective history and scheduler thresholds"
+      ],
+      "tools": [
+        "summarize_schedule_signals"
+      ],
+      "decision_rule": "all gains in the full window are <= convergence_delta",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "bottleneck",
+        "candidate",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "assess_objective_improvement",
+      "goal": "判断当前设计相对指定基点是否改善",
+      "category": "decision",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "current and reference objectives"
+      ],
+      "tools": [
+        "compare_search_states"
+      ],
+      "decision_rule": "(reference-current)/reference > 0",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "bottleneck",
+        "architecture",
+        "candidate",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "assess_optical_power_budget",
+      "goal": "判断当前光链路是否满足接收功率预算",
+      "category": "diagnosis",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "laser output",
+        "path loss",
+        "detector sensitivity"
+      ],
+      "tools": [
+        "summarize_topology_evidence"
+      ],
+      "decision_rule": "laser_output - path_loss - detector_sensitivity >= required_margin",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "topology",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "assess_parameter_effectiveness",
+      "goal": "判断一个参数在当前拓扑和后端下是否真正生效",
+      "category": "verification",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "parameter scope and backend status"
+      ],
+      "tools": [
+        "searchable_parameters"
+      ],
+      "decision_rule": "parameter is in searchable; otherwise return the declared disable reason",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "architecture",
+        "topology",
+        "candidate",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "choose_analysis_baseline",
+      "goal": "选择后续诊断使用的已评估基点",
+      "category": "decision",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "evaluated search states"
+      ],
+      "tools": [
+        "compare_search_states"
+      ],
+      "decision_rule": "argmin objective",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "bottleneck",
+        "architecture",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "identify_dominant_area_device",
+      "goal": "识别面积占比最高的器件",
+      "category": "diagnosis",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "per-device area share"
+      ],
+      "tools": [
+        "summarize_device_area_breakdown"
+      ],
+      "decision_rule": "argmax total_area_share",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "bottleneck",
+        "architecture",
+        "device",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "identify_dominant_energy_device",
+      "goal": "识别能耗占比最高的器件",
+      "category": "diagnosis",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "per-device energy share"
+      ],
+      "tools": [
+        "summarize_device_energy_breakdown"
+      ],
+      "decision_rule": "argmax total_energy_share",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "bottleneck",
+        "architecture",
+        "device",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "identify_dominant_optical_loss",
+      "goal": "识别光路中插损最大的组件",
+      "category": "diagnosis",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "per-component path loss"
+      ],
+      "tools": [
+        "summarize_topology_evidence"
+      ],
+      "decision_rule": "argmax insertion_loss_dB",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "topology",
+        "device",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "identify_latency_hotspot",
+      "goal": "识别当前工作负载的主要时延热点层",
+      "category": "diagnosis",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "ranked layer costs"
+      ],
+      "tools": [
+        "summarize_layer_ranks"
+      ],
+      "decision_rule": "maximize switching_cycles + memory_latency_ms",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "bottleneck",
+        "architecture",
+        "evaluate"
+      ],
+      "version": "1.0"
+    },
+    {
+      "name": "select_device_frontier_candidate",
+      "goal": "按指定优化方向选择一个兼容器件变体",
+      "category": "decision",
+      "preconditions": [
+        "required tools are bound",
+        "current context is available"
+      ],
+      "required_evidence": [
+        "compatible device frontier"
+      ],
+      "tools": [
+        "summarize_device_frontier"
+      ],
+      "decision_rule": "minimum requested cost or minimum joint rank on the Pareto frontier",
+      "failure_policy": "Return a typed skill error; do not invent missing evidence.",
+      "allowed_roles": [
+        "device",
+        "candidate",
+        "evaluate"
+      ],
+      "version": "1.0"
+    }
+  ],
+  "composite_workflows": [
+    {
+      "name": "candidate_preflight",
+      "goal": "在消耗仿真预算前完成候选合法性和新颖性检查",
+      "entry": "legality",
+      "nodes": [
+        {
+          "name": "legality",
+          "skill": "assess_candidate_legality",
+          "conditional_targets": [
+            "novelty"
+          ],
+          "default_target": "__end__"
+        },
+        {
+          "name": "novelty",
+          "skill": "assess_design_novelty",
+          "conditional_targets": [],
+          "default_target": "__end__"
+        }
+      ]
+    },
+    {
+      "name": "memory_aware_search_review",
+      "goal": "依据有效先验和目标收敛状态决定是否具备切换工作流的条件",
+      "entry": "memory",
+      "nodes": [
+        {
+          "name": "memory",
+          "skill": "assess_memory_maturity",
+          "conditional_targets": [
+            "convergence"
+          ],
+          "default_target": "__end__"
+        },
+        {
+          "name": "convergence",
+          "skill": "assess_objective_convergence",
+          "conditional_targets": [],
+          "default_target": "__end__"
+        }
+      ]
+    },
+    {
+      "name": "optical_path_diagnosis",
+      "goal": "形成光功率预算和主导损耗组件的联合诊断",
+      "entry": "power_budget",
+      "nodes": [
+        {
+          "name": "power_budget",
+          "skill": "assess_optical_power_budget",
+          "conditional_targets": [],
+          "default_target": "dominant_loss"
+        },
+        {
+          "name": "dominant_loss",
+          "skill": "identify_dominant_optical_loss",
+          "conditional_targets": [],
+          "default_target": "__end__"
+        }
+      ]
+    }
+  ],
+  "role_bindings": {
+    "bottleneck": [
+      "summarize_hardware_config",
+      "summarize_metrics",
+      "summarize_energy_breakdown",
+      "summarize_area_breakdown",
+      "summarize_insertion_loss",
+      "summarize_layer_ranks",
+      "summarize_operator_groups",
+      "compare_search_states",
+      "select_analysis_base",
+      "describe_metric_units",
+      "summarize_workload_features",
+      "summarize_pareto_frontier",
+      "summarize_schedule_signals",
+      "assess_memory_energy_dominance",
+      "identify_latency_hotspot",
+      "identify_dominant_energy_device",
+      "identify_dominant_area_device",
+      "choose_analysis_baseline",
+      "assess_objective_improvement",
+      "assess_objective_convergence"
+    ],
+    "architecture": [
+      "inspect_layer_details",
+      "summarize_layer_ranks",
+      "summarize_operator_groups",
+      "summarize_hardware_config",
+      "summarize_metrics",
+      "compare_search_states",
+      "select_analysis_base",
+      "summarize_energy_breakdown",
+      "summarize_area_breakdown",
+      "summarize_device_energy_breakdown",
+      "summarize_device_area_breakdown",
+      "summarize_insertion_loss",
+      "searchable_parameters",
+      "summarize_search_space",
+      "summarize_workload_features",
+      "summarize_pareto_frontier",
+      "assess_memory_energy_dominance",
+      "identify_latency_hotspot",
+      "identify_dominant_energy_device",
+      "identify_dominant_area_device",
+      "choose_analysis_baseline",
+      "assess_objective_improvement",
+      "assess_parameter_effectiveness"
+    ],
+    "topology": [
+      "summarize_optical_structure",
+      "summarize_insertion_loss_detail",
+      "summarize_insertion_loss",
+      "summarize_device_energy_breakdown",
+      "summarize_device_area_breakdown",
+      "summarize_topology",
+      "inspect_light_path",
+      "list_topology_templates",
+      "inspect_topology_template",
+      "validate_coupling",
+      "inspect_device_config",
+      "summarize_topology_evidence",
+      "searchable_parameters",
+      "summarize_device_provenance",
+      "assess_optical_power_budget",
+      "identify_dominant_optical_loss",
+      "assess_parameter_effectiveness",
+      "assess_candidate_legality"
+    ],
+    "device": [
+      "list_device_candidates",
+      "inspect_device_config",
+      "summarize_device_frontier",
+      "summarize_device_energy_breakdown",
+      "summarize_device_area_breakdown",
+      "summarize_insertion_loss_detail",
+      "summarize_device_provenance",
+      "identify_dominant_energy_device",
+      "identify_dominant_area_device",
+      "identify_dominant_optical_loss",
+      "select_device_frontier_candidate"
+    ],
+    "candidate": [
+      "searchable_parameters",
+      "summarize_hardware_config",
+      "summarize_metrics",
+      "compare_search_states",
+      "list_topology_templates",
+      "inspect_topology_template",
+      "validate_coupling",
+      "summarize_design_identity",
+      "retrieve_similar_cases",
+      "summarize_case_memory",
+      "summarize_pareto_frontier",
+      "assess_objective_improvement",
+      "assess_parameter_effectiveness",
+      "assess_candidate_legality",
+      "assess_design_novelty",
+      "assess_case_reusability",
+      "assess_memory_maturity",
+      "assess_objective_convergence"
+    ],
+    "evaluate": [
+      "summarize_hardware_config",
+      "summarize_metrics",
+      "summarize_energy_breakdown",
+      "summarize_area_breakdown",
+      "summarize_insertion_loss",
+      "summarize_insertion_loss_detail",
+      "summarize_layer_ranks",
+      "summarize_operator_groups",
+      "summarize_optical_structure",
+      "summarize_device_energy_breakdown",
+      "summarize_device_area_breakdown",
+      "summarize_topology",
+      "inspect_light_path",
+      "list_topology_templates",
+      "inspect_topology_template",
+      "validate_coupling",
+      "list_device_candidates",
+      "inspect_device_config",
+      "compare_search_states",
+      "select_analysis_base",
+      "summarize_search_space",
+      "describe_metric_units",
+      "summarize_workload_features",
+      "summarize_device_provenance",
+      "preview_evaluation_schema",
+      "summarize_design_identity",
+      "retrieve_similar_cases",
+      "summarize_case_memory",
+      "summarize_pareto_frontier",
+      "summarize_schedule_signals",
+      "assess_memory_energy_dominance",
+      "identify_latency_hotspot",
+      "identify_dominant_energy_device",
+      "identify_dominant_area_device",
+      "assess_optical_power_budget",
+      "identify_dominant_optical_loss",
+      "choose_analysis_baseline",
+      "assess_objective_improvement",
+      "select_device_frontier_candidate",
+      "assess_parameter_effectiveness",
+      "assess_candidate_legality",
+      "assess_design_novelty",
+      "assess_case_reusability",
+      "assess_memory_maturity",
+      "assess_objective_convergence"
+    ]
+  }
+}

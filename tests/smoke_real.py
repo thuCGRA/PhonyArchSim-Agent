@@ -64,7 +64,7 @@ def main():
     print(f"[7] memory: latency={mem_latency} energy={mem_energy} spec={mem_spec}")
 
     print("SMOKE TEST PASSED")
-    print(f"METRICS: energy_pj={total_energy} area_um2={total_area} latency_s={latency}")
+    print(f"METRICS: energy_mj={total_energy} area_mm2={total_area} latency_ms={latency}")
 
 
 if __name__ == "__main__":

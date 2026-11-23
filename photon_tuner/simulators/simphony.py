@@ -25,6 +25,7 @@ from photon_tuner.common.io import write_json
 from photon_tuner.core.objective import metrics_with_objective
 from photon_tuner.core.schemas import EvaluationResult
 from photon_tuner.core.search_space import materialize_hardware
+from photon_tuner.core.units import describe_units, to_display_metrics
 from photon_tuner.core.workload import DEFAULT_WORKLOAD, total_macs
 from photon_tuner.simulators.analytic import evaluate as analytic_evaluate
 from photon_tuner.simulators.base import SimulatorAdapter
@@ -104,31 +105,48 @@ class SimphonyAdapter(SimulatorAdapter):
         report = self._run_report(hardware, run_dir)
         self._write_report_files(run_dir, report)
 
-        energy_pj = float(report["metrics"]["energy_pj"])
-        area_um2 = float(report["metrics"]["area_um2"])
-        latency_s = float(report["metrics"]["latency_s"])
+        # 报告同时给出规范单位的 ``metrics`` 与 SI 镜像 ``si_metrics``。派生量
+        # （每 MAC 能耗、每吞吐面积）在 SI 下推导更直观，最后一次性换算到规范
+        # 单位（ms / mJ / mm² / fJ per MAC），此后全项目只处理规范单位。
+        # 三项系数之积为 1，故目标函数数值在换算前后完全相同。
+        si = report.get("si_metrics") or {}
+        # 总能耗 = 计算 + 存储（报告层已合成）；两个分量单独保留，便于审计与
+        # 敏感性分析（实测存储占 75–90%，单看计算能耗会误判优化方向）。
+        energy_pj = float(si.get("energy_pj", 0.0))
+        energy_compute_pj = float(si.get("energy_compute_pj", energy_pj))
+        energy_memory_pj = float(si.get("energy_memory_pj", 0.0))
+        area_um2 = float(si.get("area_um2", 0.0))
+        latency_s = float(si.get("latency_s", 0.0))
         macs = total_macs(report["workload"]["partition_cycles"][first_key(
             report["workload"]["partition_cycles"]
         )])
-        # 吞吐归一化：把能耗归一化到每 MAC（pJ_per_mac），把面积归一化到每单位吞吐
-        # （MAC/s），使并行权重阵列（单输出向量，吞吐低）与矩阵阵列在跨范式 Pareto
-        # 上可比——权重阵列器件少、面积/能耗低，但同样吞吐需更多时间。
-        throughput = macs / latency_s if latency_s > 0 else 0.0
-        metrics = {
+        # 吞吐归一化：把能耗归一化到每 MAC，把面积归一化到每单位吞吐，使并行权重
+        # 阵列（单输出向量、吞吐低）与矩阵阵列在跨范式 Pareto 上可比——权重阵列
+        # 器件少、面积/能耗低，但达到同样吞吐需要更多时间。
+        throughput_mac_per_s = macs / latency_s if latency_s > 0 else 0.0
+        metrics = to_display_metrics({
             "latency_s": latency_s,
             "energy_pj": energy_pj,
             "area_um2": area_um2,
             "total_macs": macs,
-            "throughput_mac_per_s": throughput,
+            "throughput_mac_per_s": throughput_mac_per_s,
             "pJ_per_mac": energy_pj / macs if macs else energy_pj,
-            "area_um2_per_mac_per_s": area_um2 / throughput if throughput > 0 else area_um2,
+            "area_um2_per_mac_per_s": (
+                area_um2 / throughput_mac_per_s if throughput_mac_per_s > 0 else area_um2
+            ),
             "core_insertion_loss": float(
                 report["insertion_loss"][first_key(report["insertion_loss"])][
                     "core_insertion_loss"
                 ]
             ),
-        }
+            # 分量按 SI 给出，经 to_display_metrics 一并换算。
+            "energy_compute_pj": energy_compute_pj,
+            "energy_memory_pj": energy_memory_pj,
+        })
         metrics = metrics_with_objective(metrics, hardware, self.search_space)
+        # 单位声明单独落盘：``metrics`` 必须保持纯数值，否则下游的 float() 强制
+        # 转换与 Pareto 比较都会被打断。
+        write_json(run_dir / "units.json", describe_units())
         write_json(run_dir / "metrics.json", metrics)
 
         return EvaluationResult(
@@ -354,7 +372,9 @@ def _inject_hardware(
         load_device_catalog,
         sub_arch_key,
     )
+    from photon_tuner.core.topology_space import validate_weight_bank_groups
 
+    validate_weight_bank_groups(hardware, mode="real")
     catalog = load_device_catalog(f"{simphony_root}/configs/devices")
     core_kind = str(hardware.get("arch", {}).get("topology", {}).get("core_kind", ""))
     if core_kind.startswith("mzi_mesh_"):

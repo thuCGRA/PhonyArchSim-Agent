@@ -17,6 +17,7 @@ from photon_tuner.llm.config import LLMConfig
 from photon_tuner.llm.model import build_chat_model
 from photon_tuner.rag.vector_store import HistoryVectorStore
 from photon_tuner.runtime.orchestrator import DeepAgentTuner
+from photon_tuner.runtime.scheduler import SchedulerConfig
 from photon_tuner.simulators.simphony import SimphonyAdapter
 
 
@@ -65,6 +66,44 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--search-strategy", choices=["joint", "sequential"], default="joint",
                         help="Co-search mode: joint (all layers every iteration) or "
                              "sequential (cycle architecture -> topology -> device).")
+    parser.add_argument("--max-edits", type=int, default=0,
+                        help="Max edits applied per proposal (0 = unlimited). Set 1 to "
+                             "match the traditional baselines' single-step granularity, "
+                             "which makes 'who picks a better direction' the only variable.")
+    parser.add_argument("--schedule-strategy", choices=["rag", "fixed"], default="rag",
+                        help="Workflow scheduling. 'rag' adapts from prior maturity and "
+                             "objective convergence; 'fixed' pins a mode for ablations.")
+    parser.add_argument("--schedule-mode", choices=["serial", "pipeline", "focus"],
+                        default="serial",
+                        help="Mode used when --schedule-strategy=fixed.")
+    parser.add_argument("--effective-improvement-pct", type=float, default=5.0,
+                        help="Minimum objective reduction, in percent, for a verified case "
+                             "to count toward RAG maturity (default: 5).")
+    parser.add_argument("--warm-precedent-target", type=int, default=3,
+                        help="Number of effective verified cases required for mature memory.")
+    parser.add_argument("--minimum-mature-layer-coverage", type=int, default=3,
+                        help="Distinct design layers required for mature memory.")
+    parser.add_argument("--convergence-window", type=int, default=10,
+                        help="Number of recent best-so-far gains used by the focus trigger.")
+    parser.add_argument("--convergence-delta", type=float, default=0.10,
+                        help="Shared Focus entry/exit gain threshold (0.10 = 10%%).")
+    parser.add_argument("--focus-exit-delta", type=float, default=None,
+                        help="Optional separate focus-exit threshold; unset by default.")
+    parser.add_argument("--max-consecutive-focus", type=int, default=0,
+                        help="Optional hard Focus-round cap (0 = no cap).")
+    parser.add_argument("--max-pipeline-evidence-age", type=int, default=2)
+    parser.add_argument(
+        "--agent-mode", choices=["multi", "single"], default="multi",
+        help="Agent organization ablation: specialized multi-agent roles or one generalist policy.",
+    )
+    parser.add_argument(
+        "--analysis-mode", choices=["layered", "one-shot"], default="layered",
+        help="Cross-layer organization ablation: staged layer analysis or direct unclassified proposal.",
+    )
+    parser.add_argument(
+        "--no-rag", action="store_true",
+        help="Disable case retrieval, model-facing case tools, and case-memory writes.",
+    )
     parser.add_argument("--topology-sweep", action="store_true",
                         help="Evaluate every evaluable circuit template (core_kind) "
                              "up front and archive them on the Pareto frontier.")
@@ -165,7 +204,19 @@ def main(argv: Optional[list] = None) -> int:
     )
 
     output_root = Path(args.output_root).resolve()
-    store = HistoryVectorStore(output_root / "history.db")
+    store = HistoryVectorStore(
+        output_root / "history.db",
+        improved_delta_pct=args.effective_improvement_pct,
+    )
+    scheduler_config = SchedulerConfig(
+        warm_precedent_target=args.warm_precedent_target,
+        minimum_mature_layer_coverage=args.minimum_mature_layer_coverage,
+        convergence_window=args.convergence_window,
+        convergence_delta=args.convergence_delta,
+        focus_exit_delta=args.focus_exit_delta,
+        max_consecutive_focus=args.max_consecutive_focus,
+        max_pipeline_evidence_age=args.max_pipeline_evidence_age,
+    )
     tuner = DeepAgentTuner(
         adapter=adapter,
         llm_config=llm_config,
@@ -176,6 +227,13 @@ def main(argv: Optional[list] = None) -> int:
         model=model,
         enable_gate=not args.no_gate,
         max_gate_retries=args.gate_retries,
+        max_edits_per_proposal=args.max_edits,
+        schedule_strategy=args.schedule_strategy,
+        fixed_schedule_mode=args.schedule_mode,
+        scheduler_config=scheduler_config,
+        agent_mode=args.agent_mode,
+        analysis_mode=args.analysis_mode,
+        enable_rag=not args.no_rag,
     )
 
     if args.serve:

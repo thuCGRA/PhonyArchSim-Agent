@@ -119,6 +119,7 @@ def _build_tuner(tmp: str) -> DeepAgentTuner:
         search_space=ss,
         store=HistoryVectorStore(Path(tmp) / "history.db"),
         model=FakeToolCallingModel(),
+        schedule_strategy="fixed",
     )
 
 
@@ -138,7 +139,7 @@ class TestSequentialVsJoint(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             summary = self._run(tmp, "joint", 1)
             self.assertEqual(summary["search_strategy"], "joint")
-            proposal = read_json(Path(summary["run_dir"]) / "iter_001" / "analysis" / "solution_proposal.json")
+            proposal = read_json(Path(summary["run_dir"]) / "iter_001" / "analysis" / "candidate_proposal.json")
             self.assertEqual(proposal["focus_layer"], "joint")
             # 假模型提出 arch + device；joint 应用两者，不推迟任何一项。
             self.assertEqual(sorted(proposal["applied_actions"]), ["step_hardware_parameter"])
@@ -152,17 +153,17 @@ class TestSequentialVsJoint(unittest.TestCase):
             run_dir = Path(summary["run_dir"])
             expected = ["architecture", "topology", "device"]
             for i, layer in enumerate(expected, start=1):
-                proposal = read_json(run_dir / f"iter_{i:03d}" / "analysis" / "solution_proposal.json")
+                proposal = read_json(run_dir / f"iter_{i:03d}" / "analysis" / "candidate_proposal.json")
                 self.assertEqual(proposal["focus_layer"], layer, f"iter {i}")
 
             # 迭代 1（architecture）：应用 arch，推迟 device。
-            p1 = read_json(run_dir / "iter_001" / "analysis" / "solution_proposal.json")
+            p1 = read_json(run_dir / "iter_001" / "analysis" / "candidate_proposal.json")
             self.assertEqual(p1["applied_actions"], ["step_hardware_parameter"])
             self.assertEqual(p1["applied_link_edits"], [])
             self.assertEqual(p1["deferred_edits"], ["modify_device_parameter"])
 
             # 迭代 3（device）：应用 device，推迟 arch。
-            p3 = read_json(run_dir / "iter_003" / "analysis" / "solution_proposal.json")
+            p3 = read_json(run_dir / "iter_003" / "analysis" / "candidate_proposal.json")
             self.assertEqual(p3["applied_actions"], [])
             self.assertEqual(len(p3["applied_link_edits"]), 1)
             self.assertEqual(p3["deferred_edits"], ["step_hardware_parameter"])
