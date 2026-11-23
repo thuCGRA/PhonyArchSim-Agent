@@ -12,14 +12,25 @@ OPEarch-Agent 用于搜索光电 AI 计算架构的硬件设计。给定一个�
 
 ## 环境要求与安装
 
-支持 Linux x86_64（包括 Windows 上的 WSL2 Ubuntu）。首次安装需要联网获取 Python、CPU 版 PyTorch 及固定提交的仿真依赖，并使用 GNU make 和 C++ 编译器编译 CACTI。在 Ubuntu 上可先安装系统工具：
+完整搜索支持 **Linux x86_64**，已在 Ubuntu 24.04 x86_64 环境验证。WSL2 是 Windows 用户运行 Ubuntu 的一种方式。按手头的机器选择执行位置：
+
+| 你使用的机器 | 在哪里运行下面的命令 |
+| --- | --- |
+| x86_64 Ubuntu 工作站或服务器 | 直接在 Ubuntu 终端运行。 |
+| Windows 或 macOS，有 Linux 服务器账号 | 在本机终端执行 `ssh 用户名@服务器地址`，登录 x86_64 Ubuntu 服务器后，在服务器上克隆仓库、安装环境和运行搜索。 |
+| Intel/AMD x86_64 电脑，需要在本机运行 | 在 Ubuntu 24.04 x86_64 虚拟机的终端内操作。Windows 用户已有 WSL2 Ubuntu 时，也可直接使用它。 |
+| Apple Silicon 或其他 ARM 设备 | 可通过 SSH 使用 x86_64 Ubuntu 服务器。当前仿真依赖清单指定了 Linux x86_64 的 CPU 版 PyTorch 安装包。 |
+
+在选好的 Linux 终端执行 `uname -sm`，预期输出为 `Linux x86_64`。若只需核验安装和真实仿真是否跑通，仓库启用 GitHub Actions 后，也可查看 [CI 工作流](.github/workflows/ci.yml) 的 `real-simulator` 任务。该任务使用 mock 模型和真实 SimPhony，无需模型密钥。
+
+首次安装需要联网下载 Python、CPU 版 PyTorch 和仿真依赖，并用 GNU make 和 C++ 编译器编译 CACTI。先在 Ubuntu 安装系统工具：
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y git curl ca-certificates g++ make libgl1 libglib2.0-0
 ```
 
-将下面的仓库地址替换为自己的 GitHub 地址。在 Ubuntu 或 WSL 的 Bash 中运行：
+将下面的仓库地址替换为自己的 GitHub 地址。在上一步选定的 Ubuntu 终端运行：
 
 ```bash
 git clone https://github.com/OWNER/REPOSITORY.git epic
