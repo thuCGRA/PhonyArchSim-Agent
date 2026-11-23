@@ -1,0 +1,10 @@
+{
+  "provider": "cloudmist",
+  "model": "deepseek-v4.1-flash",
+  "base_url": "https://v2.cloudmist.cloud/v1",
+  "temperature": 0.2,
+  "max_tokens": 65536,
+  "timeout": 1200,
+  "retry_attempts": 2,
+  "retry_temperature": 0.1
+}

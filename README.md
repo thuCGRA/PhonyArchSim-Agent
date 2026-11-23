@@ -46,12 +46,13 @@ bash scripts/env/bootstrap.sh
     --iterations 1 --output-root runs/smoke-mock
 ```
 
-这一步使用本地确定性模型，初始设计和候选设计都交给真实 SimPhony 评估。运行下面的命令可用 Cloudmist 的 Flash 模型验证同一条流程。请在提示处输入自己的 Cloudmist 密钥。一次搜索迭代包含多个阶段和模型请求，按供应商用量计费。
+这一步使用本地确定性模型，初始设计和候选设计都交给真实 SimPhony 评估。运行下面的命令可用 Cloudmist 的 Flash 模型验证同一条流程。随仓库提供的 [Cloudmist 配置](configs/llm.cloudmist.example.json) 固定了本例的模型、端点、请求长度上限和超时。请在提示处输入自己的 Cloudmist 密钥。一次搜索迭代包含多个阶段和模型请求，按供应商用量计费。
 
 ```bash
 read -rsp 'Cloudmist API key: ' OPENAI_API_KEY && export OPENAI_API_KEY
 printf '\n'
 .venv-agent/bin/python main.py --provider cloudmist \
+    --llm-config configs/llm.cloudmist.example.json \
     --base-url https://v2.cloudmist.cloud/v1 --model deepseek-v4.1-flash \
     --workload vit_tiny --nn-model-factory tests.factory:build_vit_tiny \
     --iterations 1 --output-root runs/smoke-cloudmist
