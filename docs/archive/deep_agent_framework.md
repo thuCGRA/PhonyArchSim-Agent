@@ -208,8 +208,8 @@ cli.py --mode real (3.14)
 ### 8.4 验证
 
 `scripts/dev/smoke_mcp.py` 通过 MCP 评估一个 vit_tiny 点，指标与直连 real 模式
-**逐位一致**：`objective=10204.406310093758`、`energy_pj=216580750.2660602`、
-`area_um2=66501954.24`、`latency_s=0.0007882927829770002`。
+**逐位一致**：`objective=10204.406310093758`、`energy_mj=216580750.2660602`、
+`area_mm2=66501954.24`、`latency_ms=0.0007882927829770002`。
 
 > 注意：analytic 镜像的 vit_tiny 基线 objective 是 `73137.08`，与 real 的 `10204.41`
 > 不同——**这是预期行为**：analytic 是近似镜像，数值上不等于真 SimPhony。"objective
