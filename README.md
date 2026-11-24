@@ -33,14 +33,16 @@ sudo apt-get install -y git curl ca-certificates g++ make libgl1 libglib2.0-0
 完成后进入用cd命令进入/home/your username（否则会提示Permission denied）下接着运行：
 
 ```bash
-git clone https://github.com/thuCGRA/PhonyArchSim-Agent.git 
-cd epic
+git clone https://github.com/thuCGRA/PhonyArchSim-Agent.git
+```
+完成后会在/home/your username下看到文件夹PhonyArchSim-Agent
+接着运行：
+```bash
+cd ~/PhonyArchSim-Agent
 bash scripts/env/bootstrap.sh
 ```
 
-上述命令克隆远端默认分支。若发布在其他分支，可在 `git clone` 后添加 `--branch 分支名`。后续命令都在克隆目录中执行。
-
-统一配置入口是 `scripts/env/environment.conf`。它指定两个解释器、各自的依赖清单和上游源码版本。脚本创建 `.venv-agent/`（默认 Python 3.14）和 `.venv-simulator/`（Python 3.10、CPU PyTorch 1.12.1），编译 CACTI，并从示例生成本地 `configs/llm.json`。迁移时在目标机器执行同一命令。仿真器随后通过 MCP 子进程运行。
+统一配置入口是 `scripts/env/environment.conf`。它指定两个解释器、各自的依赖清单和上游源码版本。bootstrap.sh脚本会创建 `.venv-agent/`（默认 Python 3.14）和 `.venv-simulator/`（Python 3.10、CPU PyTorch 1.12.1），编译 CACTI，并从示例生成本地 `configs/llm.json`。迁移时在目标机器执行同一命令。仿真器随后通过 MCP 子进程运行。
 
 `SKIP_SIMULATOR=1` 适合只运行 Agent 侧单元测试；完整搜索需要两个环境。`USE_AGENT_LOCK=1` 使用已有的 Python 3.14 Agent 锁文件（含 CUDA 包）。默认安装使用 `requirements.txt` 和离线 hashing 嵌入器。`DRY_RUN=1` 可预览安装步骤。
 
