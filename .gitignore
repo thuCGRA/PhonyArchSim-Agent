@@ -96,3 +96,4 @@ configs/prompts/prompts.yaml.bak
 .runs_probe/mobilevit/iter_000/energy_detail.json
 .runs_probe/mobilevit/iter_000/area_detail.json
 ITERATION_SUMMARY.md
+experiment/
