@@ -67,6 +67,8 @@ eval "$(python3 configs/api_keys.py)"
 python3 configs/api_keys.py --check
 有打印输出"OPENAI_API_KEY is set:",说明成功。
 
+.venv-agent/bin/python scripts/dev/verify_runtime.py simulator
+PASS simulator
 统一配置入口是 `scripts/env/environment.conf`。它指定两个解释器、各自的依赖清单和上游源码版本。bootstrap.sh脚本会创建 `.venv-agent/`（默认 Python 3.14）和 `.venv-simulator/`（Python 3.10、CPU PyTorch 1.12.1），编译 CACTI，并从示例生成本地 `configs/llm.json`。迁移时在目标机器执行同一命令。仿真器随后通过 MCP 子进程运行。
 
 `SKIP_SIMULATOR=1` 适合只运行 Agent 侧单元测试；完整搜索需要两个环境。`USE_AGENT_LOCK=1` 使用已有的 Python 3.14 Agent 锁文件（含 CUDA 包）。默认安装使用 `requirements.txt` 和离线 hashing 嵌入器。`DRY_RUN=1` 可预览安装步骤。
