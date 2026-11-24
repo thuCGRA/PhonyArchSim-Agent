@@ -124,11 +124,7 @@ cat <<EOF
   simulator venv : $([ "$SKIP_SIMULATOR" = "1" ] && echo "(skipped)" || echo ".venv-simulator/bin/python")
   llm config     : configs/llm.json (from example; secrets via OPENAI_API_KEY)
 
-  Next:
-    # A local smoke test uses a mock LLM and the real simulator:
-    .venv-agent/bin/python main.py --provider mock --workload vit_tiny --iterations 1
-    # For a real LLM, use the provider-specific command and key in the README:
-    .venv-agent/bin/python main.py --provider <p> --model <m> \\
-        --nn-model-factory tests.factory:build_vit_tiny --workload vit_tiny --iterations 1
+  Next: run the automated tests from the project root.
+    .venv-agent/bin/python tests/run_tests.py
 ====================================================================
 EOF

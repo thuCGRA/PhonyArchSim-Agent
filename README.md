@@ -23,24 +23,53 @@ OPEarch-Agent 用于搜索光电 AI 计算架构的硬件设计。给定一个�
 
 在选好的 Linux 终端执行 `uname -sm`，预期输出为 `Linux x86_64`。若只需核验安装和真实仿真是否跑通，仓库启用 GitHub Actions 后，也可查看 [CI 工作流](.github/workflows/ci.yml) 的 `real-simulator` 任务。该任务使用 mock 模型和真实 SimPhony，无需模型密钥。
 
-首次安装需要联网下载 Python、CPU 版 PyTorch 和仿真依赖，并用 GNU make 和 C++ 编译器编译 CACTI。先在 Ubuntu 安装系统工具：
+首次安装需要联网下载 Python、CPU 版 PyTorch 和仿真依赖，并用 GNU make 和 C++ 编译器编译 CACTI。先在 Ubuntu 安装系统工具，在终端运行以下命令：
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y git curl ca-certificates g++ make libgl1 libglib2.0-0
 ```
 
-将下面的仓库地址替换为自己的 GitHub 地址。在上一步选定的 Ubuntu 终端运行：
+完成后进入用cd命令进入/home/your username（否则会提示Permission denied）下接着运行：
 
 ```bash
-git clone https://github.com/OWNER/REPOSITORY.git epic
-cd epic
+git clone https://github.com/thuCGRA/PhonyArchSim-Agent.git
+```
+完成后会在/home/your username下看到文件夹PhonyArchSim-Agent
+接着运行：
+```bash
+cd ~/PhonyArchSim-Agent
 bash scripts/env/bootstrap.sh
 ```
+如果因网络问题导致超时报错可以重新执行bash scripts/env/bootstrap.sh，会从断点处继续。
+运行结束后有打印下列内容说明已经初步成功
 
-上述命令克隆远端默认分支。若发布在其他分支，可在 `git clone` 后添加 `--branch 分支名`。后续命令都在克隆目录中执行。
+SimPhony is ready in /home/your username/PhonyArchSim-Agent/.venv-simulator
 
-统一配置入口是 `scripts/env/environment.conf`。它指定两个解释器、各自的依赖清单和上游源码版本。脚本创建 `.venv-agent/`（默认 Python 3.14）和 `.venv-simulator/`（Python 3.10、CPU PyTorch 1.12.1），编译 CACTI，并从示例生成本地 `configs/llm.json`。迁移时在目标机器执行同一命令。仿真器随后通过 MCP 子进程运行。
+==> [5/5] LLM config
+    created configs/llm.json (edit provider/model/base_url as needed)
+
+==> done
+
+============================== summary ==============================
+  agent venv     : .venv-agent/bin/python
+  simulator venv : .venv-simulator/bin/python
+  llm config     : configs/llm.json (from example; secrets via OPENAI_API_KEY)
+
+  
+进一步测试：
+.venv-agent/bin/python tests/run_tests.py
+
+通过环境变量配置模型API密钥（为保障一定安全性，密钥会隐藏显示且终端关闭后配置的密钥会被清除，下次重新打开终端时需要重新运行脚本输入）
+
+eval "$(python3 configs/api_keys.py)"
+然后检查密钥是否配置成功：
+python3 configs/api_keys.py --check
+有打印输出"OPENAI_API_KEY is set:",说明成功。
+
+.venv-agent/bin/python scripts/dev/verify_runtime.py simulator
+PASS simulator
+统一配置入口是 `scripts/env/environment.conf`。它指定两个解释器、各自的依赖清单和上游源码版本。bootstrap.sh脚本会创建 `.venv-agent/`（默认 Python 3.14）和 `.venv-simulator/`（Python 3.10、CPU PyTorch 1.12.1），编译 CACTI，并从示例生成本地 `configs/llm.json`。迁移时在目标机器执行同一命令。仿真器随后通过 MCP 子进程运行。
 
 `SKIP_SIMULATOR=1` 适合只运行 Agent 侧单元测试；完整搜索需要两个环境。`USE_AGENT_LOCK=1` 使用已有的 Python 3.14 Agent 锁文件（含 CUDA 包）。默认安装使用 `requirements.txt` 和离线 hashing 嵌入器。`DRY_RUN=1` 可预览安装步骤。
 
