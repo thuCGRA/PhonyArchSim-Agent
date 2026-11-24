@@ -45,7 +45,7 @@
 
 ### 2.3 agent 系统现状(五角色确定性流水线)
 
-`photon_tuner/runtime/orchestrator.py`:`model → architecture → topology → device → solution → (gate) → evaluate → 迭代`
+`photon_tuner/runtime/orchestrator.py`:`bottleneck → architecture → topology → device → candidate → (gate) → evaluate → 迭代`
 
 | 角色 | 职责 | 输出 | 工具(只读为主) |
 |---|---|---|---|

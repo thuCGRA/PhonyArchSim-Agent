@@ -9,15 +9,15 @@ from __future__ import annotations
 from typing import Any, Dict, List, TypedDict
 
 # 各角色阶段的规范 ``task`` 判别值。
-TASK_MODEL = "model_level_analysis"
+TASK_BOTTLENECK = "bottleneck_analysis"
 TASK_ARCHITECTURE = "architecture_analysis"
 TASK_TOPOLOGY = "topology_analysis"
 TASK_DEVICE = "device_analysis"
-TASK_SOLUTION = "solution_generation"
+TASK_CANDIDATE = "candidate_generation"
 TASK_EVALUATE = "evidence_evaluation"
 
 
-class ModelPayload(TypedDict, total=False):
+class BottleneckPayload(TypedDict, total=False):
     task: str
     iteration: int
     metrics: Dict[str, Any]
@@ -42,7 +42,7 @@ class DevicePayload(TypedDict, total=False):
     metrics: Dict[str, Any]
 
 
-class SolutionPayload(TypedDict, total=False):
+class CandidatePayload(TypedDict, total=False):
     task: str
     bottleneck_state: Dict[str, Any]
     optical_analysis: Dict[str, Any]
@@ -52,6 +52,9 @@ class SolutionPayload(TypedDict, total=False):
     search_space: Dict[str, Any]
     search_strategy: str
     focus_layer: str
+    #: 最近几轮提案的（策略摘要 + 目标变化）。没有这一段，候选智能体每轮都在
+    #: 盲试——它看不到"上三次改动都把面积放大了一倍并且都变差"。
+    recent_attempts: List[Dict[str, Any]]
 
 
 class EvaluatePayload(TypedDict, total=False):
@@ -70,8 +73,8 @@ def _build(task: str, required: tuple, **fields: Any) -> Dict[str, Any]:
     return {"task": task, **fields}
 
 
-def model_payload(iteration: int, metrics: Dict[str, Any], hardware_summary: Dict[str, Any]) -> ModelPayload:
-    return _build(TASK_MODEL, ("metrics", "hardware_summary"), iteration=iteration, metrics=metrics, hardware_summary=hardware_summary)
+def bottleneck_payload(iteration: int, metrics: Dict[str, Any], hardware_summary: Dict[str, Any]) -> BottleneckPayload:
+    return _build(TASK_BOTTLENECK, ("metrics", "hardware_summary"), iteration=iteration, metrics=metrics, hardware_summary=hardware_summary)
 
 
 def architecture_payload(candidate_layers: List[str], metrics: Dict[str, Any]) -> ArchitecturePayload:
@@ -86,11 +89,12 @@ def device_payload(topology_diagnosis: Dict[str, Any], metrics: Dict[str, Any]) 
     return _build(TASK_DEVICE, ("topology_diagnosis", "metrics"), topology_diagnosis=topology_diagnosis, metrics=metrics)
 
 
-def solution_payload(**fields: Any) -> SolutionPayload:
+def candidate_payload(**fields: Any) -> CandidatePayload:
     return _build(
-        TASK_SOLUTION,
+        TASK_CANDIDATE,
         ("bottleneck_state", "optical_analysis", "retrieved_cases", "metrics",
-         "hardware_summary", "search_space", "search_strategy", "focus_layer"),
+         "hardware_summary", "search_space", "search_strategy", "focus_layer",
+         "recent_attempts"),
         **fields,
     )
 

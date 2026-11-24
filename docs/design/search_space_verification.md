@@ -111,7 +111,7 @@ CREATE TABLE ablation (
   after_latency_s REAL, after_objective REAL,
   memory_energy_delta_pct REAL,       -- 不在 objective，单独记录
   metric_deltas  TEXT NOT NULL,       -- JSON：{energy_pct,area_pct,latency_pct,objective_pct}
-  affected_metrics TEXT NOT NULL,     -- JSON 数组，如 ["latency_s","objective"]
+  affected_metrics TEXT NOT NULL,     -- JSON 数组，如 ["latency_ms","objective"]
   is_null        INTEGER NOT NULL,
   trustworthy    INTEGER NOT NULL     -- = injection_confirmed \&\& 单变量 \&\& deterministic
 );

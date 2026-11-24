@@ -1,23 +1,8 @@
 #!/usr/bin/env python3
 """Create the ``OPENAI_API_KEY`` environment variable for the current terminal.
 
-This is the book's credential step, adapted to a real Bash/Zsh session.  The book
-shows two ways of setting the key:
-
-    export OPENAI_API_KEY="your_openai_api_key"          # in the terminal
-    os.environ["OPENAI_API_KEY"] = "your_openai_api_key"  # in a Python script
-
-The second form only affects the running process and its children -- a Python
-script can never mutate the environment of the shell that launched it.  So this
-script *prints* the shell statement and the caller evaluates it:
-
-    eval "$(python configs/api_keys.py)"                # ask for the key (hidden input)
-    eval "$(python configs/api_keys.py --key sk-...)"   # pass it explicitly
-    eval "$(python configs/api_keys.py)"                # reuse the one already exported
-
-Put the key in ``API_KEY`` below if you prefer the book's "write it once in the
-file" style; an explicit ``--key`` still wins.  This file is gitignored
-(``.gitignore``) precisely because that slot may hold a real secret.
+Use the hidden prompt or an already-exported environment variable:
+    eval "$(python3 configs/api_keys.py)"
 
 Inspection helpers (no secret is printed in full):
 
@@ -46,9 +31,6 @@ import sys
 
 ENV_NAME = "OPENAI_API_KEY"
 
-# ---- the book's line: put your key here, or leave None and use --key / the prompt.
-API_KEY: str | None = None
-
 PLACEHOLDERS = {"your_openai_api_key", "sk-...", "...", "xxx"}
 
 
@@ -65,17 +47,16 @@ def mask(key: str) -> str:
 def _looks_malformed(key: str) -> str | None:
     """Return a hint string when the key looks like a placeholder / corrupted."""
     if key in PLACEHOLDERS:
-        return f"'{key}' is still the book's placeholder, not a real key"
+        return f"'{key}' is still a placeholder, not a real key"
     if any(ch.isspace() for ch in key):
         return "the value contains whitespace; quote it or re-copy it"
     return None
 
 
 def resolve_key(explicit: str | None) -> str:
-    """Explicit ``--key`` > ``API_KEY`` constant > already-exported value > prompt."""
+    """Use an explicit argument, an existing environment variable, or a hidden prompt."""
     for source, value in (
         ("--key", explicit),
-        ("API_KEY in this file", API_KEY),
         (f"${ENV_NAME} (already set)", os.environ.get(ENV_NAME)),
     ):
         if value and value.strip():
@@ -148,7 +129,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--key", default=None,
-                        help="Key value. Omit to use API_KEY in this file, the already "
+                        help="Key value. Omit to use the already "
                              "exported value, or an interactive hidden prompt.")
     parser.add_argument("--check", action="store_true",
                         help="Print the masked status and exit 0 if set, 1 if not.")
@@ -172,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if args.masked:
-        current = (args.key or API_KEY or os.environ.get(ENV_NAME, "")).strip()
+        current = (args.key or os.environ.get(ENV_NAME, "")).strip()
         print(mask(current) if current else f"{ENV_NAME} is NOT set")
         return 0 if current else 1
 

@@ -24,11 +24,11 @@ class _FakeMCPClient:
     def evaluate(self, hardware, iteration):
         return {
             "metrics": {
-                "latency_s": 1.0,
-                "energy_pj": 2.0,
-                "area_um2": 3.0,
+                "latency_ms": 1.0,
+                "energy_mj": 2.0,
+                "area_mm2": 3.0,
                 "total_macs": 100.0,
-                "pJ_per_mac": 0.02,
+                "fJ_per_mac": 0.02,
                 "core_insertion_loss": 4.0,
             },
             "report": self._report,
@@ -43,7 +43,7 @@ class TestMCPDetailFiles(unittest.TestCase):
         ss = read_json(ROOT / "configs" / "search_space.json")
         hardware = normalize_hardware_to_design_space(default_hardware(), ss)
         report = {
-            "metrics": {"energy_pj": 2.0},
+            "metrics": {"energy_mj": 2.0},
             "energy": {"by_device": {}},
             "area": {"by_device": {}},
             "insertion_loss": {"LT": {"core_insertion_loss": 4.0}},

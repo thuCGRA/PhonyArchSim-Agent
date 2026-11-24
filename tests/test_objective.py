@@ -16,15 +16,15 @@ from photon_tuner.core.objective import (
 
 class TestObjective(unittest.TestCase):
     def test_base_objective_is_product(self):
-        metrics = {"latency_s": 2.0, "pJ_per_mac": 3.0, "area_um2": 4.0}
+        metrics = {"latency_ms": 2.0, "fJ_per_mac": 3.0, "area_mm2": 4.0}
         self.assertAlmostEqual(base_objective(metrics), 24.0)
 
     def test_missing_metric_raises(self):
         with self.assertRaises(KeyError):
-            base_objective({"latency_s": 1.0})
+            base_objective({"latency_ms": 1.0})
 
     def test_metrics_with_objective_enriches(self):
-        metrics = {"latency_s": 2.0, "pJ_per_mac": 3.0, "area_um2": 4.0}
+        metrics = {"latency_ms": 2.0, "fJ_per_mac": 3.0, "area_mm2": 4.0}
         enriched = metrics_with_objective(metrics)
         self.assertAlmostEqual(enriched["objective"], 24.0)
         self.assertAlmostEqual(enriched["base_objective"], 24.0)
@@ -32,8 +32,8 @@ class TestObjective(unittest.TestCase):
 
     def test_energy_alias_maps_to_pj_per_mac(self):
         weights = objective_weights({"objective_weights": {"energy": 2.0}})
-        self.assertAlmostEqual(weights["pJ_per_mac"], 2.0)
-        self.assertAlmostEqual(weights["latency_s"], 1.0)
+        self.assertAlmostEqual(weights["fJ_per_mac"], 2.0)
+        self.assertAlmostEqual(weights["latency_ms"], 1.0)
 
     def test_il_budget_penalty_neutral_without_target(self):
         self.assertEqual(

@@ -31,15 +31,16 @@ from photon_tuner.core.search_space import (
     default_hardware,
     discover_device_catalog,
     discover_device_variants,
+    switch_topology_template,
 )
 from photon_tuner.evidence import EvidenceStore, SearchSpaceProbe
 from photon_tuner.simulators.simphony import SimphonyAdapter
 
-# 默认的架构参数子集（覆盖几何、精度、存储、拓扑与光路分布）。
-DEFAULT_ARCH_PARAMS = [
+# 默认参数子集覆盖架构、拓扑与器件层（实例类型开关）。
+DEFAULT_PARAMS = [
     "work_freq", "core_height", "core_width", "num_wavelength", "dataflow",
     "tiles", "precision_in_bit", "hbm_bandwidth", "sharing_policy",
-    "laser_distribution",
+    "laser_distribution", "laser_source", "splitter_kind", "weight_bank_groups",
 ]
 DEFAULT_DEVICES = ["mzm", "coupler", "photodetector"]
 DEFAULT_WORKLOADS = ["vit_tiny", "vit_small", "vit_base", "mobilevit"]
@@ -49,11 +50,13 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--simphony-root", required=True)
     p.add_argument("--workloads", default=",".join(DEFAULT_WORKLOADS))
-    p.add_argument("--params", default=",".join(DEFAULT_ARCH_PARAMS))
+    p.add_argument("--params", default=",".join(DEFAULT_PARAMS))
     p.add_argument("--devices", default=",".join(DEFAULT_DEVICES))
     p.add_argument("--search-space", default="configs/search_space.json")
     p.add_argument("--mode", default="real", choices=["real"],
                    help="仿真模式；analytic 已废弃，只保留 real")
+    p.add_argument("--core-kind", default=None,
+                   help="可选：先切换 baseline 到指定的 real core 模板")
     p.add_argument("--model-type", default="transformer")
     p.add_argument("--output-dir", default="runs/evidence")
     p.add_argument("--db", default="data/evidence.db")
@@ -68,10 +71,19 @@ def _parse_csv(s: Optional[str]) -> List[str]:
 
 
 def _device_level(device_type: str, baseline_hw: Dict[str, Any]) -> str:
-    if device_type in baseline_hw.get("devices", {}).get("core", {}):
-        return "core"
-    if device_type in baseline_hw.get("devices", {}).get("node", {}):
-        return "node"
+    topo = baseline_hw.get("arch", {}).get("topology", {})
+    core_kind = str(topo.get("core_kind", "dptc_crossbar"))
+    if core_kind.startswith("mzi_mesh_"):
+        bank_name, prefix = "mesh", "mesh_"
+    elif core_kind in {"mrr_weight_bank", "pcm_crossbar", "wdm_link"}:
+        bank_name, prefix = "weight_array", "weight_array_"
+    else:
+        bank_name, prefix = None, ""
+    bank = baseline_hw.get("devices", {}).get(bank_name, {}) if bank_name else baseline_hw.get("devices", {})
+    if device_type in bank.get("core", {}):
+        return f"{prefix}core"
+    if device_type in bank.get("node", {}):
+        return f"{prefix}node"
     raise ValueError(f"device type {device_type!r} not found in baseline devices")
 
 
@@ -105,23 +117,29 @@ def _run_workload(
         store=store,
         output_root=Path(args.output_dir) / workload,
         device_variants=variants,
+        mode=args.mode,
     )
 
     baseline_eval, features = probe.run_baseline(baseline_hw, workload)
     m = baseline_eval["metrics"]
     print(f"\n[{workload}] baseline objective={m['objective']:.6e} "
-          f"energy={m['energy_pj']:.4f} area={m['area_um2']:.2f} "
-          f"latency={m['latency_s']:.6g}")
+          f"energy={m['energy_mj']:.4f} area={m['area_mm2']:.2f} "
+          f"latency={m['latency_ms']:.6g}")
 
     if args.check_determinism:
         again, _ = probe.run_baseline(baseline_hw, workload, tag="baseline_recheck")
         same = all(
             again["metrics"][k] == m[k]
-            for k in ("objective", "energy_pj", "area_um2", "latency_s")
+            for k in ("objective", "energy_mj", "area_mm2", "latency_ms")
         )
         print(f"[{workload}] determinism recheck: {'PASS (bit-identical)' if same else 'FAIL'}")
 
-    summary: Dict[str, Any] = {"workload": workload, "arch": [], "device": []}
+    summary: Dict[str, Any] = {
+        "workload": workload,
+        "architecture": [],
+        "topology": [],
+        "device": [],
+    }
 
     for param in arch_params:
         records = probe.probe_arch_param(
@@ -136,7 +154,8 @@ def _run_workload(
                 f"energy={d['energy_pct']:+.2f}% area={d['area_pct']:+.2f}% "
                 f"latency={d['latency_pct']:+.2f}%"
             )
-            summary["arch"].append({
+            layer = design_space.layer_of(param) or "architecture"
+            summary[layer].append({
                 "param": param,
                 "new_value": r["new_value"],
                 "objective_pct": d["objective_pct"],
@@ -185,6 +204,8 @@ def main() -> int:
     design_space = DesignSpace(spec=search_space, device_catalog=catalog)
 
     baseline_hw = default_hardware()
+    if args.core_kind:
+        baseline_hw = switch_topology_template(baseline_hw, args.core_kind)
     store = EvidenceStore(args.db)
 
     summaries = []

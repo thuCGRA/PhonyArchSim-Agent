@@ -54,9 +54,9 @@ Verification (work_freq 5 → 10 GHz, all else fixed):
 
 | metric | work_freq=5 | work_freq=10 |
 |---|---|---|
-| latency_s | 0.0155 | 0.0077 |
-| energy_pj | 9.81e9 | 7.51e9 |
-| area_um2 | 6.65e7 | 6.65e7 |
+| latency_ms | 0.0155 | 0.0077 |
+| energy_mj | 9.81e9 | 7.51e9 |
+| area_mm2 | 6.65e7 | 6.65e7 |
 | objective | 1.01e16 | 3.86e15 |
 
 ## 4. Upstream field-name bug (fixed by the injection)
@@ -120,10 +120,10 @@ latency/energy, not the optical MVM.  This is the correct physical separation:
 `in_bit` drives the DAC/laser, `out_bit` the ADC, and `w_bit` the stored-weight
 footprint.
 
-Note on the objective scope: the DSE scalar `energy_pj` and `area_um2` are the
+Note on the objective scope: the DSE scalar `energy_mj` and `area_mm2` are the
 **computation** energy/area (from `simu_energy`/`simu_area`); memory energy is
 computed separately in the report (`report.memory.energy`) but is not part of the
-objective scalar, while `latency_s` *does* include memory latency.  This is the
+objective scalar, while `latency_ms` *does* include memory latency.  This is the
 existing report-layer design and should be stated as an explicit scope choice in
 the paper.
 
@@ -142,13 +142,13 @@ real_bandwidth = bus_width / (real_cycle_time_s / 1e9) / 8   # <-- BUG: /1e9 twi
 `real_cycle_time_s` is already in seconds, so dividing by 1e9 again inflated
 `real_bandwidth` by 10⁹ and made every memory latency (`GLB2/GLB1/RF_*_latency`)
 10⁹× too small: vit_tiny memory latency was `4.45e-13 s` (≈ 0) instead of
-`4.45e-4 s`. Because `latency_s = computation + memory`, the objective's latency
+`4.45e-4 s`. Because `latency_ms = computation + memory`, the objective's latency
 term silently ignored memory.
 
 Fix (applied): `real_bandwidth = bus_width / real_cycle_time_s / 8`.
 
 After the fix, memory latency is the **dominant** term (vit_tiny mem/comp ratio
-1.30), `latency_s` roughly doubles, and — importantly — work_freq scaling is
+1.30), `latency_ms` roughly doubles, and — importantly — work_freq scaling is
 diluted (memory latency is CACTI-based, independent of core frequency), which is
 a more realistic memory-bound behavior. The first sweep (`runs/sweep`) was
 invalidated and re-run from scratch as `runs/sweep` (buggy copy kept at

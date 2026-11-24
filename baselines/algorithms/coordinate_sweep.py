@@ -99,7 +99,15 @@ class CoordinateSweep(BaseOptimizer):
                     space.set(candidate, param, str(value))
                 else:
                     space.set(candidate, param, int(round(float(value))))
-                out.append(space.normalize(candidate))
+                # Conditional parameters can have globally declared candidates
+                # that are illegal for the current topology.  For example,
+                # ``weight_bank_groups=2`` is valid only for ``mrr_weight_bank``.
+                # A coordinate sweep must skip such inactive coordinates instead
+                # of aborting the complete baseline campaign.
+                try:
+                    out.append(space.normalize(candidate))
+                except ValueError:
+                    continue
         # 模板切换（原子、含 required slots）。
         current_core = str(space.get(base, "core_kind") or "dptc_crossbar")
         for kind in self.action_space._templates:

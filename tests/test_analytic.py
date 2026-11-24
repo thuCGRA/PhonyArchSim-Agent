@@ -1,6 +1,7 @@
 """对照 SimPhony 参考值校验离线 analytic 镜像。"""
 
 import sys
+import copy
 import unittest
 from pathlib import Path
 
@@ -19,20 +20,33 @@ from photon_tuner.simulators.analytic import (
 )
 
 
+def _reference_hardware():
+    """固定的 LT crossbar 参考设计点（解析镜像算术的回归输入）。"""
+    hw = default_hardware()
+    core = hw["arch"]["optical_core"]
+    core.update({"height": 12, "width": 12, "num_wavelength": 12, "work_freq": 5})
+    for level in ("GLB1", "GLB2", "RF"):
+        hw["arch"]["memory"][level]["cache_size"] = 485
+    return hw
+
+
 class TestAnalyticEvaluator(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.root = Path(__file__).resolve().parents[1] / "photon_tuner" / "simulators" / "simphony"
         cls.catalog = load_device_catalog(str(cls.root / "configs" / "devices"))
-        cls.hardware = default_hardware()
+        # 解析镜像的回归锚点必须固定输入，不能跟着 configs/initial_hardware.json
+        # 漂移——否则每次调整搜索空间基线，这一组"物理算术是否正确"的断言都会
+        # 被误判为回归。这里显式构造历史上的 12x12x12 @5 GHz / 485 KB LT 点。
+        cls.hardware = _reference_hardware()
         cls.sub_arch = build_sub_arch(cls.hardware, str(cls.root), cls.catalog)
 
     def test_metrics_are_positive(self):
         report = evaluate(self.hardware, simphony_root=str(self.root))
         metrics = report["metrics"]
-        self.assertGreater(metrics["energy_pj"], 0)
-        self.assertGreater(metrics["area_um2"], 0)
-        self.assertGreater(metrics["latency_s"], 0)
+        self.assertGreater(metrics["energy_mj"], 0)
+        self.assertGreater(metrics["area_mm2"], 0)
+        self.assertGreater(metrics["latency_ms"], 0)
 
     def test_energy_total_matches_reference(self):
         # 默认工作负载为 vit_tiny；此处钉住解析镜像的 LT 能量作为回归锚点。
@@ -70,11 +84,15 @@ class TestAnalyticEvaluator(unittest.TestCase):
     def test_area_is_monotonic_in_core_size(self):
         from photon_tuner.core.search_space import step_arch_parameter
 
-        base = evaluate(self.hardware, simphony_root=str(self.root))
+        # core_width 的候选是 2 的幂，因此必须从一个落在网格上的点起步，
+        # 否则 step 会先被 normalize 折回更小的候选，测出的不是"变大"而是"变小"。
+        on_grid = copy.deepcopy(self.hardware)
+        on_grid["arch"]["optical_core"]["width"] = 8
+        base = evaluate(on_grid, simphony_root=str(self.root))
         larger = evaluate(
-            step_arch_parameter(self.hardware, "core_width", 1), simphony_root=str(self.root)
+            step_arch_parameter(on_grid, "core_width", 1), simphony_root=str(self.root)
         )
-        self.assertGreater(larger["metrics"]["area_um2"], base["metrics"]["area_um2"])
+        self.assertGreater(larger["metrics"]["area_mm2"], base["metrics"]["area_mm2"])
 
     def test_sharing_policy_changes_adc_scaling(self):
         hw = default_hardware()
@@ -123,7 +141,7 @@ class TestAnalyticEvaluator(unittest.TestCase):
         hw = default_hardware()
         hw["devices"]["core"]["splitter_kind"] = "mmi"
         mmi = evaluate(hw, simphony_root=str(self.root))
-        self.assertGreater(mmi["metrics"]["area_um2"], base["metrics"]["area_um2"])
+        self.assertGreater(mmi["metrics"]["area_mm2"], base["metrics"]["area_mm2"])
         self.assertGreater(
             sub_arch(mmi["insertion_loss"])["core_insertion_loss"],
             sub_arch(base["insertion_loss"])["core_insertion_loss"],
@@ -134,7 +152,7 @@ class TestAnalyticEvaluator(unittest.TestCase):
         hw = default_hardware()
         hw["devices"]["core"]["laser_source"] = "off_chip"
         off = evaluate(hw, simphony_root=str(self.root))
-        self.assertLess(off["metrics"]["energy_pj"], base["metrics"]["energy_pj"])
+        self.assertLess(off["metrics"]["energy_mj"], base["metrics"]["energy_mj"])
 
 
 def _instance_index(device: str) -> str:

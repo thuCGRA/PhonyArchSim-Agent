@@ -25,7 +25,10 @@ def modify_device_parameter(toolbox: Any, context: ToolContext, arguments: Dict[
             "device cfgs overrides are removed; modify_device_parameter only "
             "selects a library variant via (level, device_type, device_name)"
         )
-    if level not in {"core", "node", "mesh_core", "mesh_node"} or not device_type or not device_name:
+    if level not in {
+        "core", "node", "mesh_core", "mesh_node",
+        "weight_array_core", "weight_array_node",
+    } or not device_type or not device_name:
         raise ValueError("modify_device_parameter requires (level, device_type, device_name)")
     choices = toolbox.INSTANCE_CHOICES.get(device_type)
     if choices is not None and str(device_name) not in choices:
@@ -41,7 +44,7 @@ def modify_device_parameter(toolbox: Any, context: ToolContext, arguments: Dict[
 
 TOOLS: Dict[str, Tuple[ToolSpec, Callable]] = {
     "modify_device_parameter": (
-        ToolSpec("modify_device_parameter", "Select a library variant for a device type at the core/node/mesh level.", {"type": "object", "properties": {"level": {"type": "string"}, "device_type": {"type": "string"}, "device_name": {"type": "string"}}}),
+        ToolSpec("modify_device_parameter", "Select a library variant in the active core/node, mesh_core/mesh_node, or weight_array_core/weight_array_node slot.", {"type": "object", "properties": {"level": {"type": "string", "enum": ["core", "node", "mesh_core", "mesh_node", "weight_array_core", "weight_array_node"]}, "device_type": {"type": "string"}, "device_name": {"type": "string"}}}),
         modify_device_parameter,
     ),
 }

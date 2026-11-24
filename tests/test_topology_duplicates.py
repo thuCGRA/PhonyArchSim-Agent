@@ -179,4 +179,4 @@ class TestTempoPhysicsIsStillExpressible(unittest.TestCase):
         slow = set_device_choice(hw, "core", "mzm", "SL_MZM")
         sl = evaluate(slow, ROOT)["metrics"]
         # 慢光 EOM 通过 device 维度选型即可表达，无需新拓扑。
-        self.assertNotEqual(lit["energy_pj"], sl["energy_pj"])
+        self.assertNotEqual(lit["energy_mj"], sl["energy_mj"])

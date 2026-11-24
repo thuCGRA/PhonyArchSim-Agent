@@ -8,7 +8,7 @@ from photon_tuner.llm.cache import ResponseCache
 class TestResponseCache(unittest.TestCase):
     def test_miss_then_hit(self):
         cache = ResponseCache()
-        key = cache.key("model_agent", {"task": "x"})
+        key = cache.key("bottleneck_agent", {"task": "x"})
         self.assertIsNone(cache.get(key))
         cache.put(key, "OUT", ["t1"], None)
         hit = cache.get(key)

@@ -1,0 +1,21 @@
+{
+  "arch": {
+    "system": {
+      "tiles": 16,
+      "cores_per_tile": 4,
+      "dataflow": "weight_stationary"
+    },
+    "optical_core": {
+      "height": 32,
+      "width": 32,
+      "num_wavelength": 32,
+      "work_freq": 4
+    },
+    "memory": {
+      "HBM": {"bandwidth": 4096},
+      "GLB2": {"cache_size": 2048},
+      "GLB1": {"cache_size": 2048},
+      "RF": {"cache_size": 2048}
+    }
+  }
+}

@@ -10,10 +10,10 @@
       "type": "Crossbar",
       "coherent": true,
       "universal": true,
-      "height": 12,
-      "width": 12,
-      "num_wavelength": 12,
-      "work_freq": 5,
+      "height": 16,
+      "width": 16,
+      "num_wavelength": 16,
+      "work_freq": 4,
       "precision": {
         "in_bit": 4,
         "w_bit": 4,
@@ -32,15 +32,15 @@
         "bandwidth": 1024
       },
       "GLB2": {
-        "cache_size": 485,
+        "cache_size": 512,
         "block_size": 8
       },
       "GLB1": {
-        "cache_size": 485,
+        "cache_size": 512,
         "block_size": 8
       },
       "RF": {
-        "cache_size": 485,
+        "cache_size": 512,
         "block_size": 8
       }
     }

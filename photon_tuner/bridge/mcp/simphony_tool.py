@@ -112,7 +112,19 @@ class SimphonyMCPClient:
         args = {"hardware": json.dumps(hardware), "iteration": int(iteration)}
         future = asyncio.run_coroutine_threadsafe(tool.ainvoke(args), self._loop)
         out = future.result(timeout=self._timeout)
-        return json.loads(_unwrap_text(out))
+        text = _unwrap_text(out)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as exc:
+            # 服务端若曾被原生子进程污染 stdio，响应会变成空串或含杂行。此时
+            # 直接把收到的原始文本带进错误里，否则只剩一句"Expecting value"
+            # 完全无法定位（这正是此前随机溃散的现场）。
+            preview = text[:400].replace("\n", "\\n")
+            raise RuntimeError(
+                f"SimPhony MCP returned a non-JSON payload (len={len(text)}): "
+                f"{preview!r}. This usually means something wrote to the server's "
+                f"stdout (see _isolate_protocol_stdout in simphony_server.py)."
+            ) from exc
 
     def ping(self) -> str:
         """往返调用服务器的 ``ping`` 工具（真正的存活检查）。"""

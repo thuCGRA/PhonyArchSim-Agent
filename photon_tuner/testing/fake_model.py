@@ -19,13 +19,13 @@ from langchain_core.runnables import RunnableLambda
 # task -> 符合 schema 的 mock 字段（编排器的结构化抽取会将这些字段
 # 直接映射到对应的 pydantic 输出模型）。
 _MOCK: Dict[str, Dict[str, Any]] = {
-    "model_level_analysis": {
+    "bottleneck_analysis": {
         "candidate_layers": [
             {"layer_id": 0, "layer_name": "conv1", "group": "convolution",
-             "rank_metric": "energy_pj", "rank_value": 1.0,
+             "rank_metric": "energy_mj", "rank_value": 1.0,
              "impact_types": ["energy"], "root_causes": ["device dynamic energy"]},
             {"layer_id": 1, "layer_name": "linear", "group": "linear",
-             "rank_metric": "latency_s", "rank_value": 1.0,
+             "rank_metric": "latency_ms", "rank_value": 1.0,
              "impact_types": ["latency"], "root_causes": ["memory loading"]},
         ],
         "summary": "Mock model-level analysis: energy is the dominant cost driver.",
@@ -76,7 +76,7 @@ _MOCK: Dict[str, Dict[str, Any]] = {
         "retrieval_description": "select lower-loss on-chip laser variant",
         "summary": "Mock device analysis: switch to a lower-loss laser variant.",
     },
-    "solution_generation": {
+    "candidate_generation": {
         "strategy": "shrink the tile count to cut energy and area",
         "actions": [
             {"name": "step_hardware_parameter",

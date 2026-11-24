@@ -14,7 +14,7 @@ from typing import Dict
 import yaml
 
 # 本模块必须暴露为 ``<ROLE>_PROMPT`` 常量（以及 ``load_prompt(role)``）的六个角色名。
-_ROLE_NAMES = ("model", "architecture", "topology", "device", "solution", "evaluate")
+_ROLE_NAMES = ("bottleneck", "architecture", "topology", "device", "candidate", "evaluate")
 
 _PROMPTS_PATH = Path(__file__).resolve().parents[2] / "configs" / "prompts" / "prompts.yaml"
 
@@ -37,11 +37,11 @@ def _load_prompts(path: Path) -> Dict[str, str]:
 
 _PROMPTS = _load_prompts(_PROMPTS_PATH)
 
-MODEL_PROMPT = _PROMPTS["MODEL_PROMPT"]
+BOTTLENECK_PROMPT = _PROMPTS["BOTTLENECK_PROMPT"]
 ARCHITECTURE_PROMPT = _PROMPTS["ARCHITECTURE_PROMPT"]
 TOPOLOGY_PROMPT = _PROMPTS["TOPOLOGY_PROMPT"]
 DEVICE_PROMPT = _PROMPTS["DEVICE_PROMPT"]
-SOLUTION_PROMPT = _PROMPTS["SOLUTION_PROMPT"]
+CANDIDATE_PROMPT = _PROMPTS["CANDIDATE_PROMPT"]
 EVALUATE_PROMPT = _PROMPTS["EVALUATE_PROMPT"]
 
 

@@ -18,6 +18,7 @@ import unittest
 from pathlib import Path
 
 from photon_tuner.core.search_space import (
+    default_hardware,
     build_design_space,
     materialize_hardware,
     switch_topology_template,
@@ -77,6 +78,7 @@ def _fingerprint(sub_arch):
         "scaling_rules": netlist.get("scaling_rules"),
         "laser_dist": netlist.get("laser_power_distribution_factor"),
         "temporal_accum": netlist.get("temporal_accum_factor"),
+        "instances": netlist.get("instances"),
         "device_slots": sorted((core.get("devices") or {}).keys()),
     }
     blob = json.dumps(keep, sort_keys=True, default=str)
@@ -99,6 +101,9 @@ def _mutator(param):
         "temporal_accum": (("arch", "topology"), "temporal_accum", "deep"),
         "laser_distribution": (("arch", "topology"), "laser_distribution", "H*W*N*C"),
         "mesh_rank": (("arch", "topology"), "mesh_rank", 32),
+        "weight_bank_groups": (("arch", "topology"), "weight_bank_groups", 2),
+        "laser_source": (("devices", "core"), "laser_source", "off_chip"),
+        "splitter_kind": (("devices", "core"), "splitter_kind", "mmi"),
     }
     container, key, value = table[param]
 
@@ -125,13 +130,14 @@ class TestParamScopeDeclarations(unittest.TestCase):
 
     def test_crossbar_all_architecture_params_effective(self):
         for kind in CROSSBAR_KINDS:
-            self.assertEqual(hidden_params(kind), ["mesh_rank"])
+            self.assertEqual(set(hidden_params(kind)), {"mesh_rank", "weight_bank_groups"})
 
     def test_mesh_hides_geometry_and_dataflow(self):
         for kind in MESH_KINDS:
             self.assertEqual(
                 sorted(hidden_params(kind)),
-                ["core_height", "core_width", "dataflow", "num_wavelength"],
+                ["core_height", "core_width", "dataflow", "laser_source",
+                 "num_wavelength", "splitter_kind", "weight_bank_groups"],
             )
 
     def test_mesh_rank_is_the_mesh_lever(self):
@@ -244,6 +250,12 @@ class TestParamScopeMatchesBuilders(unittest.TestCase):
                 if is_param_effective(param, kind):
                     continue
                 with self.subTest(param=param, kind=kind):
+                    if param == "weight_bank_groups" and kind in {"pcm_crossbar", "wdm_link"}:
+                        # An explicit double bank is invalid for these weight-array builders.
+                        with self.assertRaises(ValueError):
+                            self._probe(param, kind)
+                        checked += 1
+                        continue
                     self.assertFalse(
                         self._probe(param, kind),
                         f"{param} 声明在 {kind} 下无效，但改动后 sub_arch 却变了——"
@@ -266,7 +278,10 @@ class TestTopologyAwareSearchSpace(unittest.TestCase):
 
     def test_crossbar_exposes_geometry_and_hides_mesh_rank(self):
         hw = self._hw("dptc_crossbar")
-        self.assertEqual(self.ds.effective_candidates("core_height", hw), [8, 12, 16])
+        # geometric 轴取 2 的幂，上界至少到 64。
+        geometry = self.ds.effective_candidates("core_height", hw)
+        self.assertEqual(geometry, self.ds.candidates("core_height"))
+        self.assertGreaterEqual(geometry[-1], 64)
         self.assertEqual(self.ds.effective_candidates("mesh_rank", hw), [])
 
     def test_mesh_exposes_mesh_rank_and_hides_geometry(self):
@@ -330,7 +345,7 @@ class TestGatesRejectIneffectiveParams(unittest.TestCase):
 
         for kind, rec in (
             ("dptc_crossbar", {"parameter": "core_height", "value": 16}),
-            ("mzi_mesh_clements", {"parameter": "work_freq", "value": 10}),
+            ("mzi_mesh_clements", {"parameter": "work_freq", "value": 8}),
         ):
             with self.subTest(kind=kind):
                 row = architecture_legality_check(self._output([rec]), self._ctx(kind))
@@ -357,6 +372,47 @@ class TestGatesRejectIneffectiveParams(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestModeInertParams(unittest.TestCase):
+    """后端级惰性参数：必须在 real 模式下被排除，否则智能体白烧评估预算。
+
+    实证依据（real 模式逐值求值）：``hbm_bandwidth`` 取 512/1024/2048/4096 GB/s
+    以及 ``precision_w_bit`` 取 2/4/8 bit，得到的 latency/energy/area **逐位相同**。
+    """
+
+    def test_real_mode_excludes_inert_axes(self):
+        from photon_tuner.core.search_space import build_design_space
+
+        ds = build_design_space({})
+        table = ds.scope_table("dptc_crossbar", "real")
+        for param in ("hbm_bandwidth", "precision_w_bit"):
+            self.assertEqual(table["params"][param]["status"], "not_consumed", param)
+            self.assertIn("reason", table["params"][param])
+        searchable = set(ds.searchable_by_layer("dptc_crossbar", "real")["architecture"])
+        self.assertNotIn("hbm_bandwidth", searchable)
+        self.assertNotIn("precision_w_bit", searchable)
+        # 真正生效的轴不能被连带排除。
+        for live in ("tiles", "work_freq", "precision_in_bit", "core_height"):
+            self.assertIn(live, searchable)
+
+    def test_analytic_mode_keeps_them(self):
+        """解析镜像确实消费这两个参数，因此在那里仍是有效轴。"""
+        from photon_tuner.core.search_space import build_design_space
+
+        ds = build_design_space({})
+        for param in ("hbm_bandwidth", "precision_w_bit"):
+            self.assertEqual(
+                ds.scope_table("dptc_crossbar", "analytic")["params"][param]["status"],
+                "effective", param,
+            )
+
+    def test_baseline_action_space_skips_them(self):
+        from baselines.action_space import ActionSpace
+        from photon_tuner.core.search_space import DesignSpace
+
+        summary = ActionSpace(DesignSpace(), mode="real").mode_summary()
+        self.assertEqual(summary["excluded_inert_params"], ["hbm_bandwidth", "precision_w_bit"])
 
 
 class TestPhysicallyForcedValues(unittest.TestCase):
@@ -432,7 +488,11 @@ class TestPhysicallyForcedValues(unittest.TestCase):
         from photon_tuner.core.topology_space import forced_value_violations
 
         hw = switch_topology_template(materialize_hardware(None), "dptc_crossbar")
-        self.assertEqual(hw["arch"]["optical_core"]["num_wavelength"], 12)
+        # crossbar 下不施加物理强制，取值保持不变（基线现为 16 λ / output_stationary）。
+        self.assertEqual(
+            hw["arch"]["optical_core"]["num_wavelength"],
+            default_hardware()["arch"]["optical_core"]["num_wavelength"],
+        )
         self.assertEqual(hw["arch"]["system"]["dataflow"], "output_stationary")
         self.assertEqual(forced_value_violations(hw), [])
 

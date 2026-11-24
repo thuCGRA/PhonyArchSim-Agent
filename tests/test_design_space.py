@@ -64,12 +64,26 @@ class TestMultiGranularity(unittest.TestCase):
 
     def test_work_freq_candidates(self):
         ds = DesignSpace()
-        self.assertEqual(ds.candidates("work_freq"), [5, 10, 15, 20, 25])
+        # 频率轴取 GHz 下的 2 的幂；上界至少到 64，下界不低于 1 GHz，
+        # 逐点单调递增（相邻项成倍数关系而非等差）。
+        values = ds.candidates("work_freq")
+        self.assertGreaterEqual(values[-1], 64)
+        self.assertGreaterEqual(values[0], 1)
+        self.assertEqual(values, sorted(set(values)))
+        self.assertEqual([b / a for a, b in zip(values, values[1:])], [2] * (len(values) - 1))
 
     def test_memory_params_are_searchable(self):
         ds = DesignSpace()
-        self.assertEqual(ds.candidates("hbm_bandwidth"), [512, 1024, 2048])
-        self.assertEqual(ds.candidates("glb1_cache_size"), [64, 256, 485, 1024, 4096])
+        # 带宽与三级缓存一律取 2 的幂。缓存下界是 512 KB 而非 64 KB：CACTI 在
+        # 给定的 block_size/associativity 下对 64/128/256 KB 无解（见
+        # configs/search_space.json 的 `_notes.cache_lower_bound`）。这条断言
+        # 锁定"只保留后端可建模档位"这一约束，避免有人把不可行值加回去。
+        for param, floor in (("hbm_bandwidth", 512), ("glb1_cache_size", 512),
+                             ("glb2_cache_size", 512), ("rf_cache_size", 512)):
+            values = ds.candidates(param)
+            self.assertEqual(values[0], floor, param)
+            self.assertEqual([b / a for a, b in zip(values, values[1:])],
+                             [2] * (len(values) - 1), param)
         # 原 ``mode`` 字段（analytic/real 分流）已随 analytic 废弃移除：
         # 仿真只走 real，存储层级参数一律被消费。
         self.assertNotIn("mode", ds.param_spec("glb1_cache_size"))
@@ -96,7 +110,9 @@ class TestRealFeasibility(unittest.TestCase):
         self.assertEqual(len(violations), 1)
         self.assertEqual(violations[0]["param"], "work_freq")
         fixed = ds.normalize(hw)
-        self.assertEqual(fixed["arch"]["optical_core"]["work_freq"], 10)
+        # 钳位必须落在**候选网格**上：取不超过器件上限（10 GHz）的最大候选。
+        grid = [v for v in ds.candidates("work_freq") if v <= 10]
+        self.assertEqual(fixed["arch"]["optical_core"]["work_freq"], max(grid))
 
     def test_precision_violation_detected_and_clamped(self):
         ds = DesignSpace(device_catalog=CATALOG_STRICT)
@@ -167,30 +183,41 @@ class TestAdaptiveRefine(unittest.TestCase):
         hw = default_hardware()
         hw["arch"]["optical_core"]["work_freq"] = 10
         refined = ds.refine(hw, factor=5)
-        self.assertEqual(
-            refined.candidates("work_freq"),
-            [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-        )
+        # factor=5 在中心值 10 两侧各展开 5 GHz。关键不变量是"细化后的网格
+        # 落在该窗口内、且比全局 2 的幂网格更密"——全局网格在 [5,15] 内只有
+        # {8}，细化后必须多于 1 个点，否则 refine 就失去意义。
+        candidates = refined.candidates("work_freq")
+        self.assertTrue(all(5 <= v <= 15 for v in candidates), candidates)
+        coarse = [v for v in DesignSpace().candidates("work_freq") if 5 <= v <= 15]
+        self.assertGreater(len(candidates), len(coarse))
+        self.assertEqual(candidates, sorted(set(candidates)))
 
     def test_refine_keeps_geometric_grids(self):
         ds = DesignSpace()
         hw = default_hardware()
         refined = ds.refine(hw, factor=4)
-        self.assertEqual(refined.candidates("tiles"), [1, 2, 4, 8])
-        self.assertEqual(refined.candidates("cores_per_tile"), [1, 2, 4])
+        # 几何轴在细化后仍严格保持 2 的幂（不会退化成线性网格）。
+        for param in ("tiles", "cores_per_tile"):
+            values = refined.candidates(param)
+            self.assertEqual(values, sorted(set(values)), param)
+            self.assertEqual([b / a for a, b in zip(values, values[1:])],
+                             [2] * (len(values) - 1), param)
 
     def test_refine_is_centered_and_bounded(self):
         ds = DesignSpace()
         hw = default_hardware()
         hw["arch"]["optical_core"]["num_wavelength"] = 8
         refined = ds.refine(hw, factor=2)
-        self.assertEqual(refined.candidates("num_wavelength"), [8, 9, 10])
+        values = refined.candidates("num_wavelength")
+        self.assertIn(8, values)
+        self.assertEqual(values, sorted(set(values)))
+        self.assertTrue(all(b > a for a, b in zip(values, values[1:])))
 
 
 class TestBuildDesignSpace(unittest.TestCase):
     def test_layered_spec_loads(self):
         ds = build_design_space(LAYERED_DESIGN_SPACE, device_catalog=CATALOG)
-        self.assertEqual(ds.candidates("work_freq"), [5, 10, 15, 20, 25])
+        self.assertEqual(ds.candidates("work_freq"), DesignSpace().candidates("work_freq"))
 
     def test_legacy_flat_spec_migrates(self):
         flat = {"arch": {"work_freq": [5, 10, 25], "num_wavelength": [8, 16]}}
@@ -198,7 +225,7 @@ class TestBuildDesignSpace(unittest.TestCase):
         self.assertEqual(ds.candidates("work_freq"), [5, 10, 25])
         self.assertEqual(ds.candidates("num_wavelength"), [8, 16])
         # 未提及的参数保持其分层默认值。
-        self.assertEqual(ds.candidates("hbm_bandwidth"), [512, 1024, 2048])
+        self.assertEqual(ds.candidates("hbm_bandwidth"), DesignSpace().candidates("hbm_bandwidth"))
 
     def test_summary_exposes_layers_and_constraints(self):
         ds = DesignSpace(device_catalog=CATALOG)
@@ -224,7 +251,10 @@ class TestFlatMemoryIntegration(unittest.TestCase):
         self.assertEqual(out["arch"]["memory"]["HBM"]["bandwidth"], 1024)
 
     def test_step_arch_parameter_memory_advances(self):
+        # 本用例检的是"在**给定**空间内步进"，因此起点必须落在该空间的网格上：
+        # 默认配置现为 512 KB，而这里的 legacy 空间是 [64, 256, 485, 1024, 4096]。
         hw = default_hardware()
+        hw["arch"]["memory"]["GLB1"]["cache_size"] = 485
         stepped = step_arch_parameter(hw, "glb1_cache_size", 1, self.space)
         self.assertEqual(stepped["arch"]["memory"]["GLB1"]["cache_size"], 1024)
 

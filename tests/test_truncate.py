@@ -25,7 +25,7 @@ class TestTruncateString(unittest.TestCase):
 
 class TestFitPayload(unittest.TestCase):
     def test_flat_payload_preserved(self):
-        payload = {"task": "model_level_analysis", "iteration": 1, "metrics": {"latency_s": 0.1}}
+        payload = {"task": "bottleneck_analysis", "iteration": 1, "metrics": {"latency_ms": 0.1}}
         self.assertEqual(fit_payload(payload), payload)
 
     def test_long_strings_truncated_within_budget(self):
