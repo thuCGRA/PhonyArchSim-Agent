@@ -71,3 +71,4 @@ photon_tuner/simulators/simphony/runs/
 Thumbs.db
 .vscode/
 .idea/
+/scripts/analysis

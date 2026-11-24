@@ -48,4 +48,17 @@ if __name__ == "__main__":
         )
 
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    sys.exit(0 if result.wasSuccessful() else 1)
+    if not result.wasSuccessful():
+        sys.exit(1)
+    if not have_langgraph or result.skipped:
+        print("Full verification incomplete: some tests were skipped.", file=sys.stderr)
+    else:
+        print("""All automated tests passed. Next, from the project root in Bash:
+
+1. Configure the key for your provider in this terminal:
+   eval "$(.venv-agent/bin/python configs/api_keys.py)"
+2. Edit provider, model and base_url in configs/llm.json (created from configs/llm.example.json).
+3. Verify the real SimPhony simulator with a local mock model (no API request):
+   .venv-agent/bin/python scripts/dev/verify_runtime.py simulator
+4. Verify your selected online model and one candidate evaluation (uses API credits):
+   .venv-agent/bin/python scripts/dev/verify_runtime.py model""")
