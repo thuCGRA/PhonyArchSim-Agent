@@ -221,9 +221,10 @@ class TestTopologyAxisIsActionable(unittest.TestCase):
                 set_device_choice(hw, "core", device_type, variant)
 
     def test_legitimate_variant_still_applies(self):
-        from photon_tuner.core.search_space import set_device_choice
+        from photon_tuner.core.search_space import set_device_choice, switch_topology_template
 
-        hw = set_device_choice(default_hardware(), "mesh_node", "phase_shifter", "ITO_PS")
+        mesh = switch_topology_template(default_hardware(), "mzi_mesh_clements")
+        hw = set_device_choice(mesh, "mesh_node", "phase_shifter", "ITO_PS")
         self.assertEqual(hw["devices"]["mesh"]["node"]["phase_shifter"], "ITO_PS")
 
 

@@ -1,7 +1,7 @@
 # Per-Run Analysis Log
 
 Per-run observations from the real-mode 4-workload × 5-run sweep (objective =
-`latency_s × energy_pj × area_um2`, lower is better). Each run is baseline eval →
+`latency_ms × energy_mj × area_mm2`, lower is better). Each run is baseline eval →
 model/layer/optical/solution agents → proposal eval, against the real
 `ONNArchSimulator` and real `DeepSeek-V4-Pro-0813`.
 

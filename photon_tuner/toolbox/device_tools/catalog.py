@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Tuple
 
 from photon_tuner.common.tool_types import ToolResult, ToolSpec
 from photon_tuner.core.provenance import resolve_variant
-from photon_tuner.core.topology_space import coupling_compatible_variants
+from photon_tuner.core.topology_space import coupling_compatible_variants, is_param_effective
 from photon_tuner.toolbox.common_tool.context import ToolContext
 
 
@@ -30,10 +30,15 @@ def list_device_candidates(toolbox: Any, context: ToolContext, arguments: Dict[s
     filt = _coupling_filtered(toolbox, context)
     compatible = filt["compatible"] if filt is not None else toolbox.variants
     excluded = filt["excluded"] if filt is not None else {}
+    hardware = context.current_hardware or {}
+    core_kind = ((hardware.get("arch") or {}).get("topology") or {}).get("core_kind")
+    instance_choices = {
+        param: choices for param, choices in toolbox.INSTANCE_CHOICES.items()
+        if is_param_effective(param, core_kind)
+    }
     if device_type:
-        choices = toolbox.INSTANCE_CHOICES.get(device_type)
-        if choices is not None:
-            return ToolResult("list_device_candidates", {device_type: choices})
+        if device_type in toolbox.INSTANCE_CHOICES:
+            return ToolResult("list_device_candidates", {device_type: instance_choices.get(device_type, [])})
         return ToolResult("list_device_candidates", {
             device_type: compatible.get(device_type, []),
             "excluded": {device_type: excluded.get(device_type, [])}
@@ -41,7 +46,7 @@ def list_device_candidates(toolbox: Any, context: ToolContext, arguments: Dict[s
         })
     return ToolResult("list_device_candidates", {
         "variants": compatible,
-        "instance_choices": dict(toolbox.INSTANCE_CHOICES),
+        "instance_choices": instance_choices,
         "coupling_filtered": filt is not None,
         "excluded": excluded,
     })

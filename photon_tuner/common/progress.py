@@ -199,7 +199,7 @@ class ProgressReporter:
             return f"{key}: {old:.4g}->{new:.4g} ({(new - old) / old * 100:+.1f}%)"
 
         message = " ".join(
-            _delta(key) for key in ("latency_s", "energy_pj", "area_um2", "objective")
+            _delta(key) for key in ("latency_ms", "energy_mj", "area_mm2", "objective")
             if key in before or key in after
         )
         self._write(
@@ -279,10 +279,11 @@ class ProgressReporter:
 
     def _component_label(self, component: str) -> str:
         labels = {
-            "agent:model_level": "model_agent",
-            "agent:layer_level": "layer_agent",
-            "agent:optical_level": "optical_agent",
-            "agent:solution_generation": "solution_agent",
+            "agent:bottleneck": "bottleneck_agent",
+            "agent:architecture": "architecture_agent",
+            "agent:topology": "topology_agent",
+            "agent:device": "device_agent",
+            "agent:candidate_generation": "candidate_agent",
         }
         return labels.get(component, component)
 

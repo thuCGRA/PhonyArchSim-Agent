@@ -2,20 +2,23 @@
 
 标量化采用归一化延迟、能耗与成本三者的乘积：::
 
-    objective = latency_s * pJ_per_mac * area_um2
+    objective = latency_ms * fJ_per_mac * area_mm2
 
-对光子加速器而言，成本项为芯片面积（一阶制造成本的近似），能耗项为每 MAC
-能耗（论文中常引用的指标）。对于固定工作负载，
-``pJ_per_mac = energy_pj / total_macs``，因此该目标与
-``latency_s * energy_pj * area_um2`` 的排序一致（相差常数
+指标一律取 :mod:`photon_tuner.core.units` 定义的规范单位（ms / fJ per MAC /
+mm²），与光电子加速器文献的惯例一致。对光子加速器而言，成本项为芯片面积
+（一阶制造成本的近似），能耗项为每 MAC 能耗。对于固定工作负载，
+``fJ_per_mac = energy_mj / total_macs``，因此该目标与
+``latency_ms * energy_mj * area_mm2`` 的排序一致（相差常数
 ``1 / total_macs``），同时归一化了目标的量级，使其可在不同工作负载间比较。
+
+注意三项单位系数的乘积为 1，故本目标在单位换算前后**数值完全相同**。
 
 值越小越优。两项扩展让标量化真正利用 SimPhony 上报的权衡（例如
 ``num_wavelength``：更多波长可降低延迟/能耗，但会增大面积）：
 
 * **可配置权重** -- ``search_space["objective_weights"]`` 将
   ``{latency, energy, area}``（或对应的指标键）映射为指数，形成加权几何平均。
-  ``energy`` / ``energy_pj`` 是 ``pJ_per_mac`` 的别名。
+  ``energy`` / ``energy_mj`` 是 ``fJ_per_mac`` 的别名。
 * **插入损耗预算惩罚** -- 可选的单边软惩罚，将最长光路限制在
   ``search_space["il_budget"]``（dB）以内，用于约束光链路预算
   （激光功率与光电探测器灵敏度），而非数字吞吐目标。
@@ -30,15 +33,20 @@ import math
 from typing import Any, Dict, Mapping, Optional
 
 
-DEFAULT_METRIC_KEYS = ("latency_s", "pJ_per_mac", "area_um2")
+DEFAULT_METRIC_KEYS = ("latency_ms", "fJ_per_mac", "area_mm2")
+# 权重键既接受短名，也接受规范单位键与旧 SI 键（历史 run 的搜索空间配置无需改写）。
 _WEIGHT_ALIASES = {
-    "latency": "latency_s",
-    "latency_s": "latency_s",
-    "energy": "pJ_per_mac",
-    "energy_pj": "pJ_per_mac",
-    "pJ_per_mac": "pJ_per_mac",
-    "area": "area_um2",
-    "area_um2": "area_um2",
+    "latency": "latency_ms",
+    "latency_ms": "latency_ms",
+    "latency_ms": "latency_ms",
+    "energy": "fJ_per_mac",
+    "energy_mj": "fJ_per_mac",
+    "energy_mj": "fJ_per_mac",
+    "fJ_per_mac": "fJ_per_mac",
+    "fJ_per_mac": "fJ_per_mac",
+    "area": "area_mm2",
+    "area_mm2": "area_mm2",
+    "area_mm2": "area_mm2",
 }
 
 

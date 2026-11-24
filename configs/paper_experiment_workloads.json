@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "description": "Nine real SimPhony workloads used by the paper experiments.",
+  "workloads": [
+    {
+      "name": "vit_tiny",
+      "family": "ViT",
+      "scale": "tiny",
+      "model_type": "transformer",
+      "nn_model_factory": "tests.factory:build_vit_tiny",
+      "initial_hardware": "configs/initial_hardware.json"
+    },
+    {
+      "name": "vit_small",
+      "family": "ViT",
+      "scale": "small",
+      "model_type": "transformer",
+      "nn_model_factory": "tests.factory:build_vit_small",
+      "initial_hardware": "configs/paper_initial_hardware/vit_small.json"
+    },
+    {
+      "name": "vit_base",
+      "family": "ViT",
+      "scale": "base",
+      "model_type": "transformer",
+      "nn_model_factory": "tests.factory:build_vit_base",
+      "initial_hardware": "configs/paper_initial_hardware/vit_base.json"
+    },
+    {
+      "name": "mobilevit_xxs",
+      "family": "MobileViT",
+      "scale": "xxs",
+      "model_type": "transformer",
+      "nn_model_factory": "tests.factory:build_mobilevit_xxs",
+      "initial_hardware": "configs/paper_initial_hardware/mobilevit_xxs.json"
+    },
+    {
+      "name": "mobilevit_xs",
+      "family": "MobileViT",
+      "scale": "xs",
+      "model_type": "transformer",
+      "nn_model_factory": "tests.factory:build_mobilevit_xs",
+      "initial_hardware": "configs/paper_initial_hardware/mobilevit_xs.json"
+    },
+    {
+      "name": "mobilevit_s",
+      "family": "MobileViT",
+      "scale": "small",
+      "model_type": "transformer",
+      "nn_model_factory": "tests.factory:build_mobilevit",
+      "initial_hardware": "configs/paper_initial_hardware/mobilevit_s.json"
+    },
+    {
+      "name": "cnn_tiny",
+      "family": "CNN",
+      "scale": "tiny",
+      "model_type": "cnn",
+      "nn_model_factory": "tests.factory:build_cnn_tiny",
+      "initial_hardware": "configs/paper_initial_hardware/cnn_tiny.json"
+    },
+    {
+      "name": "cnn_small",
+      "family": "CNN",
+      "scale": "small",
+      "model_type": "cnn",
+      "nn_model_factory": "tests.factory:build_cnn_small",
+      "initial_hardware": "configs/paper_initial_hardware/cnn_small.json"
+    },
+    {
+      "name": "cnn_base",
+      "family": "CNN",
+      "scale": "base",
+      "model_type": "cnn",
+      "nn_model_factory": "tests.factory:build_cnn_base",
+      "initial_hardware": "configs/paper_initial_hardware/cnn_base.json"
+    }
+  ]
+}

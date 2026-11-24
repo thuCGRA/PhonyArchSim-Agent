@@ -5,12 +5,16 @@
       "label": "architecture (架构层)",
       "params": {
         "tiles": {
+          "dimension": "parallelism_mapping",
           "kind": "int",
           "values": [
             1,
             2,
             4,
-            8
+            8,
+            16,
+            32,
+            64
           ],
           "step": 1,
           "map": [
@@ -21,11 +25,16 @@
           "refine": false
         },
         "cores_per_tile": {
+          "dimension": "parallelism_mapping",
           "kind": "int",
           "values": [
             1,
             2,
-            4
+            4,
+            8,
+            16,
+            32,
+            64
           ],
           "step": 1,
           "map": [
@@ -36,6 +45,7 @@
           "refine": false
         },
         "dataflow": {
+          "dimension": "parallelism_mapping",
           "kind": "enum",
           "values": [
             "output_stationary",
@@ -49,6 +59,7 @@
           ]
         },
         "precision_in_bit": {
+          "dimension": "storage_operating_point",
           "kind": "bits",
           "values": [
             2,
@@ -65,6 +76,7 @@
           "constraint": "in_bit <= dac.prec"
         },
         "precision_w_bit": {
+          "dimension": "storage_operating_point",
           "kind": "bits",
           "values": [
             2,
@@ -80,6 +92,7 @@
           "refine": false
         },
         "precision_out_bit": {
+          "dimension": "storage_operating_point",
           "kind": "bits",
           "values": [
             2,
@@ -96,13 +109,15 @@
           "constraint": "out_bit <= adc.prec"
         },
         "hbm_bandwidth": {
+          "dimension": "storage_operating_point",
           "kind": "int",
           "values": [
             512,
             1024,
-            2048
+            2048,
+            4096
           ],
-          "step": 128,
+          "step": 64,
           "map": [
             "arch",
             "memory",
@@ -112,12 +127,12 @@
           "refine": true
         },
         "glb1_cache_size": {
+          "dimension": "storage_operating_point",
           "kind": "int",
           "values": [
-            64,
-            256,
-            485,
+            512,
             1024,
+            2048,
             4096
           ],
           "step": 64,
@@ -130,12 +145,12 @@
           "refine": true
         },
         "glb2_cache_size": {
+          "dimension": "storage_operating_point",
           "kind": "int",
           "values": [
-            64,
-            256,
-            485,
+            512,
             1024,
+            2048,
             4096
           ],
           "step": 64,
@@ -148,12 +163,12 @@
           "refine": true
         },
         "rf_cache_size": {
+          "dimension": "storage_operating_point",
           "kind": "int",
           "values": [
-            64,
-            256,
-            485,
+            512,
             1024,
+            2048,
             4096
           ],
           "step": 64,
@@ -166,11 +181,13 @@
           "refine": true
         },
         "core_height": {
+          "dimension": "crossbar_scale",
           "kind": "int",
           "values": [
             8,
-            12,
-            16
+            16,
+            32,
+            64
           ],
           "step": 2,
           "map": [
@@ -181,11 +198,13 @@
           "refine": true
         },
         "core_width": {
+          "dimension": "crossbar_scale",
           "kind": "int",
           "values": [
             8,
-            12,
-            16
+            16,
+            32,
+            64
           ],
           "step": 2,
           "map": [
@@ -196,11 +215,13 @@
           "refine": true
         },
         "num_wavelength": {
+          "dimension": "crossbar_scale",
           "kind": "int",
           "values": [
             8,
-            12,
-            16
+            16,
+            32,
+            64
           ],
           "step": 2,
           "map": [
@@ -211,15 +232,17 @@
           "refine": true
         },
         "work_freq": {
+          "dimension": "storage_operating_point",
           "kind": "int",
           "values": [
-            5,
-            10,
-            15,
-            20,
-            25
+            2,
+            4,
+            8,
+            16,
+            32,
+            64
           ],
-          "step": 5,
+          "step": 2,
           "map": [
             "arch",
             "optical_core",
@@ -234,6 +257,7 @@
       "label": "topology (拓扑与电路层)",
       "params": {
         "core_kind": {
+          "dimension": "core_template_scale",
           "kind": "enum",
           "map": [
             "arch",
@@ -244,6 +268,7 @@
           "_derived_from": "topology_space.CORE_KINDS (evaluable=True)"
         },
         "node_kind": {
+          "dimension": "core_template_scale",
           "kind": "enum",
           "map": [
             "arch",
@@ -254,6 +279,7 @@
           "_derived_from": "topology_space.NODE_KINDS (evaluable=True)"
         },
         "sharing_policy": {
+          "dimension": "circuit_organization",
           "kind": "enum",
           "values": [
             "no_sharing",
@@ -267,6 +293,7 @@
           ]
         },
         "temporal_accum": {
+          "dimension": "circuit_organization",
           "kind": "enum",
           "values": [
             "off",
@@ -280,6 +307,7 @@
           ]
         },
         "laser_distribution": {
+          "dimension": "circuit_organization",
           "kind": "enum",
           "values": [
             "H*W",
@@ -293,6 +321,7 @@
           ]
         },
         "mesh_rank": {
+          "dimension": "core_template_scale",
           "kind": "int",
           "values": [
             4,
@@ -308,16 +337,25 @@
             "mesh_rank"
           ],
           "refine": true,
-          "note": "MZI mesh 的酉变换阶数 N（N×N 矩阵，N 进 N 出）。仅 mzi_mesh_* 范式生效；dptc_crossbar 惰性。小 N = 浅 mesh、低插损、低能耗，但大矩阵需分更多块（延时高）；大 N = 深 mesh、高插损、高能耗，但一次算完（延时低）。这是光子 mesh 的经典 IL-vs-吞吐权衡轴。"
+          "note": "模板规模：在 MZI 网格中表示变换阶数，在 WDM 权重阵列中表示并行权重数；DPTC 交叉开关使用独立的阵列高、宽和波长数。"
+        },
+        "weight_bank_groups": {
+          "dimension": "circuit_organization",
+          "kind": "int",
+          "values": [1, 2],
+          "map": ["arch", "topology", "weight_bank_groups"],
+          "note": "仅 MRR 权重组支持并行读出分组。双组要求总波长数为偶数且不小于 2，平分波长后各自读出部分和并进行数字归约。"
         }
       }
     },
     "device": {
       "label": "device (器件选择层)",
       "kind": "selection",
-      "note": "候选由 simphony/configs/devices 运行时自动发现；下表为当前器件库中参与 core/node 网表的类型快照（实际搜索以运行时发现为准）。另外两个 params 是实例级器件类型切换（非库内器件类型）：laser_source 在片上/片外激光源间切换 i4 实例，splitter_kind 在激光分光器/1x10 MMI 间切换 i6 实例——两者保持实例编号/缩放规则/光路位置不变，只换器件类型。",
+      "note": "库内变体由运行时发现，按活动槽位选用。laser_source 和 splitter_kind 分别切换 DPTC 网表中 i4、i6 的器件类型，通过器件编辑工具提交。",
       "params": {
         "laser_source": {
+          "dimension": "slot_selection",
+          "edit_tool": "modify_device_parameter",
           "kind": "enum",
           "values": [
             "on_chip",
@@ -330,6 +368,8 @@
           ]
         },
         "splitter_kind": {
+          "dimension": "slot_selection",
+          "edit_tool": "modify_device_parameter",
           "kind": "enum",
           "values": [
             "laser_splitter",
@@ -433,5 +473,9 @@
       "note": "library cfgs are fixed; only variant selection is searchable"
     }
   },
-  "_note": "搜索空间候选值的唯一数据源。core_kind/node_kind 的候选由 photon_tuner/core/topology_space.py 的拓扑注册表注入，不在此声明。原 mode 字段(analytic/real)已移除：仿真只走 real。"
+  "_note": "搜索空间候选值的唯一数据源。core_kind/node_kind 的候选由 photon_tuner/core/topology_space.py 的拓扑注册表注入，不在此声明。原 mode 字段(analytic/real)已移除：仿真只走 real。",
+  "_notes": {
+    "architecture_powers_of_two": "架构层的几何/内存/频率轴一律取 2 的幂，上限至少到 64，保证同一拓扑族下有足够密的邻域可走。精度轴保持 2/4/8 bit：上界由 DAC/ADC 的 prec 与 sample_rate 链物理给定，扩到 64 bit 不可仿真。",
+    "cache_lower_bound": "三级缓存的候选下界为 512 KB：CACTI 在给定的 block_size/associativity 下对 64/128/256 KB 无解（'Invalid memory configuration provided for GLB1'）。这是后端建模能力的边界，而非物理上不存在。若要搜索更小的缓存，需要更换存储模型或放宽 associativity 约束，不能只把数字加回候选表。"
+  }
 }

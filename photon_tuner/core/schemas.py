@@ -18,7 +18,7 @@ class EvaluationResult:
 
     ``hardware`` 是完整的光子配置（架构参数 + 器件选择 + 器件级 ``cfgs``
     覆盖）。``metrics`` 是标量汇总值的扁平映射
-    （latency_s / energy_pj / area_um2 / ...）。``detail_files`` 指向仿真器
+    （latency_ms / energy_mj / area_mm2 / ...）。``detail_files`` 指向仿真器
     生成的细粒度分解产物（按器件能耗、按器件面积、插入损耗、内存等）。
     """
 
@@ -58,9 +58,9 @@ class LayerLoad:
     layer_name: str
     group: str
     occurrences: int = 0
-    latency_s: float = 0.0
-    energy_pj: float = 0.0
-    area_um2: float = 0.0
+    latency_ms: float = 0.0
+    energy_mj: float = 0.0
+    area_mm2: float = 0.0
     cycles: Dict[str, float] = field(default_factory=dict)
     features: Dict[str, Any] = field(default_factory=dict)
 
@@ -70,9 +70,9 @@ class LayerLoad:
             "layer_name": self.layer_name,
             "group": self.group,
             "occurrences": self.occurrences,
-            "latency_s": self.latency_s,
-            "energy_pj": self.energy_pj,
-            "area_um2": self.area_um2,
+            "latency_ms": self.latency_ms,
+            "energy_mj": self.energy_mj,
+            "area_mm2": self.area_mm2,
             "cycles": self.cycles,
             "features": self.features,
         }
@@ -125,7 +125,7 @@ class OpticalAnalysisResult:
 
 
 @dataclass
-class SolutionProposal:
+class CandidateProposal:
     """方案生成智能体的输出。
 
     ``actions`` 列出架构级硬件编辑工具调用，``link_edits`` 列出光链路组件的

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import replace
-from typing import Optional
+from typing import Any, Optional
 
 import tenacity
 from langchain_openai import ChatOpenAI
@@ -74,11 +74,16 @@ def llm_retry(attempts: int):
     )
 
 # 提供方预设。``paratera`` 托管本环境使用的模型（DeepSeek-V4-Pro-0813）；
+# ``cloudmist`` 是 [OI] 兼容的 CloudMist 端点（DeepSeek-V4.1-Flash）；
 # ``deepseek-official`` 是 DeepSeek 官方 API。
 PROVIDER_PRESETS = {
     "paratera": {
         "base_url": "https://llmapi.paratera.com/v1",
         "model": "DeepSeek-V4-Pro-0813",
+    },
+    "cloudmist": {
+        "base_url": "https://v2.cloudmist.cloud/v1",
+        "model": "deepseek-v4.1-flash",
     },
     "paratera-flash": {
         "base_url": "https://llmapi.paratera.com/v1",
@@ -90,7 +95,7 @@ PROVIDER_PRESETS = {
     },
     "deepseek-official": {
         "base_url": "https://api.deepseek.com/v1",
-        "model": "deepseek-chat",
+        "model": "deepseek-flash",
     },
 }
 
@@ -146,12 +151,39 @@ def resolve_base_url(config: LLMConfig) -> str:
     ).rstrip("/")
 
 
+class StructuredChat(ChatOpenAI):
+    """默认经**工具调用**获取结构化输出的聊天模型。
+
+    ``ChatOpenAI.with_structured_output`` 的默认 ``method`` 是 ``"json_schema"``，
+    即依赖网关真正实现 ``response_format``。部分兼容网关（cloudmist、Paratera
+    代理等）会**静默忽略**该字段：模型照常以 Markdown 散文作答，LangChain 解析
+    JSON 失败并抛出 ``ValidationError: Invalid JSON``，运行在第一个 agent 阶段即
+    中止（``iterations: 0``，但 token 已照常消耗）。
+
+    这些网关的工具调用可用，因此默认改用 ``function_calling``：把输出 schema 绑成
+    工具，模型以 ``tool_calls`` 返回结构化结果。需要原生 ``json_schema`` 的网关可
+    通过 :attr:`photon_tuner.llm.config.LLMConfig.structured_output_method` 改回。
+    """
+
+    #: ``function_calling`` / ``json_schema`` / ``json_mode``。
+    structured_output_method: str = "function_calling"
+
+    def with_structured_output(self, schema: Any = None, **kwargs: Any) -> Any:
+        # 调用方显式传入 ``method`` 时以调用方为准（例如端点探针脚本）。
+        kwargs.setdefault("method", self.structured_output_method)
+        return super().with_structured_output(schema, **kwargs)
+
+
 def build_chat_model(
     config: LLMConfig,
     *,
     temperature: Optional[float] = None,
 ) -> ChatOpenAI:
-    """构建密钥来自环境变量的、支持工具调用的 ``ChatOpenAI``。"""
+    """构建密钥来自环境变量、支持工具调用的聊天模型。
+
+    返回 :class:`StructuredChat`：网关忽略 ``response_format`` 时，
+    结构化输出仍能经工具调用落地。
+    """
     config = _apply_provider_preset(config)
     require_api_key()
 
@@ -166,7 +198,18 @@ def build_chat_model(
         kwargs["max_tokens"] = int(config.max_tokens)
     if config.timeout:
         kwargs["timeout"] = float(config.timeout)
+    # DeepSeek V4.1 Flash enables thinking mode by default.  The official API
+    # rejects named/required ``tool_choice`` while thinking is enabled, whereas
+    # LangChain's function-calling structured output deliberately forces the
+    # schema tool.  Run the official Flash endpoint in non-thinking mode so the
+    # ReAct agents and final Pydantic formatter can use deterministic tool calls.
+    # (CloudMist/Paratera compatibility endpoints do not accept this extension.)
+    if config.provider == "deepseek-official" and config.model == "deepseek-flash":
+        kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
     # 流式输出：启用时 ChatOpenAI 通过 ``on_llm_new_token`` 逐 token 输出，
     # 由 trace 收集器转发到 stderr。
     kwargs["streaming"] = bool(config.stream)
-    return ChatOpenAI(**kwargs)
+    return StructuredChat(
+        **kwargs,
+        structured_output_method=config.structured_output_method,
+    )

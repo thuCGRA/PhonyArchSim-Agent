@@ -80,9 +80,9 @@ def run_one(workload: str, run_idx: int, iterations: int) -> dict:
             metrics = json.loads(mf.read_text(encoding="utf-8"))
     if metrics:
         record["objective"] = metrics.get("objective")
-        record["energy_pj"] = metrics.get("energy_pj")
-        record["area_um2"] = metrics.get("area_um2")
-        record["latency_s"] = metrics.get("latency_s")
+        record["energy_mj"] = metrics.get("energy_mj")
+        record["area_mm2"] = metrics.get("area_mm2")
+        record["latency_ms"] = metrics.get("latency_ms")
 
     # Distinguish "proposal changed the design" from "proposal was a no-op".
     hws = [json.loads((d / "hardware.json").read_text(encoding="utf-8"))

@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SWEEP = ROOT / "runs" / "sweep"
-KEYS = ("latency_s", "energy_pj", "area_um2", "objective")
+KEYS = ("latency_ms", "energy_mj", "area_mm2", "objective")
 
 
 def load_metrics(run_dir: Path, it: str) -> dict:

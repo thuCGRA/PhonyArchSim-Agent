@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from photon_tuner.common.tool_types import ToolResult, ToolSpec
 from photon_tuner.core.search_space import (
+    LAYERED_DESIGN_SPACE,
     discover_device_catalog,
     discover_device_variants,
 )
@@ -39,8 +40,9 @@ class DeviceToolbox:
     # 实例级器件类型切换（非库类型）。选择其一会重写 ``build_sub_arch`` 中
     # 相应的网表实例。
     INSTANCE_CHOICES: Dict[str, List[str]] = {
-        "laser_source": ["on_chip", "off_chip"],
-        "splitter_kind": ["laser_splitter", "mmi"],
+        param: list(spec["values"])
+        for param, spec in LAYERED_DESIGN_SPACE["layers"]["device"]["params"].items()
+        if spec.get("edit_tool") == "modify_device_parameter"
     }
 
     def __init__(self, devicelib_root: str, search_space: Optional[Dict[str, Any]] = None) -> None:

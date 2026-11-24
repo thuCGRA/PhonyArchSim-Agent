@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
-class ModelOutput(BaseModel):
+class BottleneckOutput(BaseModel):
     """模型级（整体架构）分析输出。"""
 
     candidate_layers: List[Dict[str, Any]] = Field(
@@ -49,12 +49,9 @@ class ArchitectureOutput(BaseModel):
     circuit_recommendations: List[Dict[str, Any]] = Field(
         default_factory=list,
         description="Concrete architecture-level (L2/L3) lever moves, each as "
-                    "{'parameter', 'value', 'rationale'} with a parameter drawn from the "
-                    "design space (tiles, cores_per_tile, dataflow, precision_in_bit, "
-                    "precision_w_bit, precision_out_bit, hbm_bandwidth, glb1_cache_size, "
-                    "glb2_cache_size, rf_cache_size, core_height, core_width, "
-                    "num_wavelength, work_freq, laser_source, splitter_kind) and 'value' "
-                    "one of that parameter's listed candidates. Emit [] only when the "
+                    "{'parameter', 'value', 'rationale'} with a parameter from the "
+                    "architecture group returned by searchable_parameters and a value "
+                    "from its candidates in summarize_search_space. Emit [] only when the "
                     "diagnosis genuinely supports no architecture-level move.",
     )
     llm_notes: Dict[str, Any] = Field(default_factory=dict)
@@ -97,9 +94,9 @@ class TopologyOutput(BaseModel):
     circuit_recommendations: List[Dict[str, Any]] = Field(
         default_factory=list,
         description="Concrete circuit-level (L4) lever recommendations, each "
-        "{\"parameter\": sharing_policy|temporal_accum|laser_distribution, \"value\": <legal "
-        "candidate>, \"rationale\": <why it lowers latency*energy*area>}. These are evaluable "
-        "on every executable topology and flow to the solution agent as candidate edits.",
+        "{'parameter': <name from the topology group in searchable_parameters>, "
+        "'value': <legal candidate>, 'rationale': <expected metric tradeoff>}. "
+        "MRR weight-bank grouping changes readout resources and adds digital reduction.",
     )
     retrieval_description: str = Field(default="")
     summary: str = Field(default="")
@@ -135,18 +132,20 @@ class EditAction(BaseModel):
 
 
 class DeviceEditAction(BaseModel):
-    """单个器件变体选择编辑（``link_edits`` 列表）。"""
+    """槽位器件变体或实例类型选择（``link_edits`` 列表）。"""
 
     name: Literal["modify_device_parameter"] = Field(
         description="Always 'modify_device_parameter' for link_edits."
     )
     arguments: Dict[str, Any] = Field(
         default_factory=dict,
-        description="{'level': 'core'|'node'|'mesh_core'|'mesh_node', 'device_type': ..., 'device_name': ...}.",
+        description="Use level, device_type and device_name from the active template. "
+                    "For DPTC instance choices laser_source and splitter_kind, use "
+                    "level='core' and a value from list_device_candidates as device_name.",
     )
 
 
-class SolutionOutput(BaseModel):
+class CandidateOutput(BaseModel):
     """方案生成输出：下一个合法的硬件配置。"""
 
     strategy: str = Field(description="One-line summary of the proposed move.")

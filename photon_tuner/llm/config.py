@@ -13,6 +13,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
+#: ``Chat[OI].with_structured_output`` 支持的传输方式。
+_STRUCTURED_OUTPUT_METHODS = frozenset({"function_calling", "json_schema", "json_mode"})
+
 
 @dataclass
 class LLMConfig:
@@ -27,6 +30,10 @@ class LLMConfig:
     retry_temperature: float = 0.1
     enable_cache: bool = True
     stream: bool = False
+    #: 结构化输出的传输方式，交给 ``Chat[OI].with_structured_output(method=...)``。
+    #: ``json_schema`` 依赖网关真正实现 ``response_format``；部分兼容网关会静默
+    #: 忽略它并返回散文，此时必须退回 ``function_calling``（见 llm/model.py）。
+    structured_output_method: str = "function_calling"
 
     def __post_init__(self) -> None:
         # 对明显不合理的配置尽早报错，而非稍后抛出难以定位的 SDK 错误。
@@ -44,3 +51,9 @@ class LLMConfig:
             raise ValueError(f"enable_cache must be a bool, got {self.enable_cache!r}")
         if not isinstance(self.stream, bool):
             raise ValueError(f"stream must be a bool, got {self.stream!r}")
+        if self.structured_output_method not in _STRUCTURED_OUTPUT_METHODS:
+            raise ValueError(
+                "structured_output_method must be one of "
+                f"{sorted(_STRUCTURED_OUTPUT_METHODS)}, "
+                f"got {self.structured_output_method!r}"
+            )

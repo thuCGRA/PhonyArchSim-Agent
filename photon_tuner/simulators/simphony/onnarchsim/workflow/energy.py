@@ -145,11 +145,16 @@ def initalize_all_devices_power(
         W,
         N,
     )
+    groups = core_config.get("weight_bank_groups", 1)
+    if groups > 1:
+        # Split the existing whole-core power allocation evenly across the
+        # equal wavelength bands. At equal loss, grouping conserves the
+        # modeled optical power requirement for every fanout expression.
+        laser_power_distribution_factor /= groups
     in_bit = core_config.get("precision", {}).get("in_bit", 8)
     out_bit = core_config.get("precision", {}).get("out_bit", 8)
 
-    # Laser config reference
-    laser_config = {}
+    laser_configs = []
 
     for device, device_cfg in components.items():
         part, type, index, instance, name = parse_device_name(device)
@@ -195,7 +200,7 @@ def initalize_all_devices_power(
                 else sensitivity
             )
         elif "on_chip_laser" in type or "off_chip_laser" in device:
-            laser_config = device_cfg
+            laser_configs.append(device_cfg)
             continue
         # Default values, if not specificly defined, then set to 0 for power and 1 for tuning cycles
         if "dynamic_power" not in device_cfg:
@@ -218,36 +223,29 @@ def initalize_all_devices_power(
         device_cfg["static_energy"] = device_cfg["static_power"] / work_freq
         device_cfg["dynamic_energy"] = device_cfg["dynamic_power"] / work_freq
 
-    # for device, device_cfg in components.items():
-    #     if "off_chip_laser" in device or "on_chip_laser" in device:
-
-    static_power = cal_laser_power(
-        laser_config,
-        in_bit,
-        insertion_loss,
-        sensitivity,
-        extinction_ratio,
-        laser_power_distribution_factor,
-    )
-    laser_config["dynamic_power"] = 0
-    laser_config["static_power"] = static_power
-    laser_config["tuning_cycles"] = 1
-    laser_config["static_energy"] = static_power / work_freq
-    laser_config["dynamic_energy"] = 0
-
-    for key in list(laser_config.keys()):
-        if key not in [
-            "count",
-            "static_power",
-            "dynamic_power",
-            "tuning_cycles",
-            "chip_type",
-        ]:
-            laser_config.pop(key)
-
-    # Energy pJ per switch  Config Power is mW, work freq is GHz
-    laser_config["static_energy"] = laser_config["static_power"] / work_freq
-    laser_config["dynamic_energy"] = laser_config["dynamic_power"] / work_freq
+    if not laser_configs:
+        raise ValueError("laser power requires an on-chip or off-chip laser instance")
+    for laser_config in laser_configs:
+        # The grouped topology uses matched branches, so the same worst path
+        # budget applies to each source.
+        static_power = cal_laser_power(
+            laser_config,
+            in_bit,
+            insertion_loss,
+            sensitivity,
+            extinction_ratio,
+            laser_power_distribution_factor,
+        )
+        for key in list(laser_config):
+            if key not in {"count", "chip_type"}:
+                laser_config.pop(key)
+        laser_config.update(
+            dynamic_power=0,
+            static_power=static_power,
+            tuning_cycles=1,
+            static_energy=static_power / work_freq,
+            dynamic_energy=0,
+        )
 
     return components
 

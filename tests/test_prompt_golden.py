@@ -9,7 +9,7 @@ import unittest
 
 from photon_tuner.agents.prompts import load_prompt
 
-ROLE_NAMES = ("model", "architecture", "topology", "device", "solution", "evaluate")
+ROLE_NAMES = ("bottleneck", "architecture", "topology", "device", "candidate", "evaluate")
 
 
 class TestPromptGolden(unittest.TestCase):
@@ -24,15 +24,15 @@ class TestPromptGolden(unittest.TestCase):
             self.assertIn("Role:", load_prompt(role), role)
 
     def test_analysis_prompts_declare_mission(self):
-        for role in ("model", "architecture", "topology", "device"):
+        for role in ("bottleneck", "architecture", "topology", "device"):
             self.assertIn("Mission:", load_prompt(role), role)
 
-    def test_model_and_architecture_declare_grounding(self):
-        for role in ("model", "architecture"):
+    def test_bottleneck_and_architecture_declare_grounding(self):
+        for role in ("bottleneck", "architecture"):
             self.assertIn("Grounding", load_prompt(role), role)
 
-    def test_solution_prompt_locks_edit_contract(self):
-        text = load_prompt("solution")
+    def test_candidate_prompt_locks_edit_contract(self):
+        text = load_prompt("candidate")
         for token in (
             "modify_hardware_parameter",
             "modify_topology_template",

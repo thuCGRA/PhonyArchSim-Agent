@@ -22,8 +22,11 @@ from photon_tuner.core.topology import (
     DEFAULT_LASER_DISTRIBUTION,
     DEFAULT_SHARING_POLICY,
     DEFAULT_TEMPORAL_ACCUM,
+    apply_laser_distribution,
+    apply_temporal_accum,
     apply_topology,
 )
+from photon_tuner.core.topology_space import validate_weight_bank_groups
 from photon_tuner.simulators.mesh_model import mesh_topology
 
 # --------------------------------------------------------------------------- #
@@ -540,6 +543,8 @@ def build_weight_array_sub_arch(
         n_weight = int(core.get("height", core.get("width", 8)))
     if n_weight < 2:
         n_weight = 2
+    groups = validate_weight_bank_groups(hardware)
+    group_wavelengths = n_weight // groups
 
     wa = dict(hardware.get("devices", {}).get("weight_array", {}) or {})
     wa_core = dict(wa.get("core", {}) or {})
@@ -562,7 +567,10 @@ def build_weight_array_sub_arch(
         "height": int(n_weight),
         "width": 1,
         "matrix_height": 1,
-        "matrix_width": int(n_weight),
+        # MRR wavelengths contribute to reduction dimension D. One core
+        # produces one dot product, so those same wavelengths cannot also
+        # provide n_weight independent spatial M outputs.
+        "matrix_width": 1 if kind == "mrr_weight_bank" else int(n_weight),
         "num_wavelength": int(n_weight),
         "range_forwards": int(spec["range_forwards"]),
         "weight_count": int(n_weight),
@@ -635,16 +643,52 @@ def build_weight_array_sub_arch(
         "device_counter_function": None,
     }
 
-    apply_topology(
-        core_cfg.setdefault("netlist", {}),
-        str(topology.get("sharing_policy", DEFAULT_SHARING_POLICY)),
+    if kind == "mrr_weight_bank":
+        core_cfg["weight_bank_groups"] = groups
+        core_cfg["group_wavelengths"] = group_wavelengths
+    if groups == 2:
+        netlist = core_cfg["netlist"]
+        # Disjoint wavelength bands with independent optical sources and readout
+        # chains. Keep the shared node model's total MRR count at n_weight.
+        instances = dict(netlist["instances"])
+        nets = dict(netlist["nets"])
+        rules = dict(netlist["scaling_rules"])
+        rules["i_dac"] = f"{group_wavelengths}*R*C"
+        second = {instance: f"{instance}_bankB" for instance in instances}
+        netlist["instances"].update({second[key]: value for key, value in instances.items()})
+        netlist["scaling_rules"].update(rules)
+        netlist["scaling_rules"].update({second[key]: value for key, value in rules.items()})
+
+        def second_port(endpoint: str) -> str:
+            instance, suffix, port = endpoint.partition("(")
+            return second[instance] + suffix + port
+
+        netlist["nets"].update({
+            f"{net}_bankB": [second_port(endpoint) for endpoint in endpoints]
+            for net, endpoints in nets.items()
+        })
+        for chip, members in netlist["chip_mapping"].items():
+            netlist["chip_mapping"][chip] = members + [second[member] for member in members]
+        for role in ("operand_1", "operand_2"):
+            members = netlist[role]
+            netlist[role] = members + [second[member] for member in members]
+        timed = netlist["temporal_accum_factor"]["devices"]
+        netlist["temporal_accum_factor"]["devices"] = timed + [second[member] for member in timed]
+        core_cfg["weight_bank_partition"] = {
+            "wavelength_indices": [list(range(group_wavelengths)), list(range(group_wavelengths, n_weight))],
+            "partial_sum_sources": ["i_adc", second["i_adc"]],
+            "accumulator_bits": core_cfg["precision"]["out_bit"] + 1,
+        }
+
+    # Keep each weight bank's native readout counts.
+    apply_temporal_accum(
+        core_cfg["netlist"],
         str(topology.get("temporal_accum", DEFAULT_TEMPORAL_ACCUM)),
+    )
+    apply_laser_distribution(
+        core_cfg["netlist"],
         str(topology.get("laser_distribution", DEFAULT_LASER_DISTRIBUTION)),
     )
-    # 权重阵列是单输出点积（1 个 PD/TIA/ADC 汇总所有波长），ADC/TIA 共享策略不适用；
-    # 撤销 apply_sharing_policy 对 i_adc/i_tia 的 H*W 缩放覆盖。
-    core_cfg["netlist"]["scaling_rules"]["i_adc"] = "R*C"
-    core_cfg["netlist"]["scaling_rules"]["i_tia"] = "R*C"
 
     lt_body = _load_yaml_versioned(
         f"{simphony_root}/configs/design/sub_architectures/LT.yml", "v1"

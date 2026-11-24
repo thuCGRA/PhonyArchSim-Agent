@@ -33,18 +33,22 @@ class MockSimulator:
 
 class TestRealHardwareInjection(unittest.TestCase):
     def test_inject_hardware_updates_all_structures(self):
+        hw = default_hardware()
+        system = hw["arch"]["system"]
+        core = hw["arch"]["optical_core"]
         sim = MockSimulator()
-        _inject_hardware(sim, default_hardware(), str(ROOT))
+        _inject_hardware(sim, hw, str(ROOT))
 
         sub = sub_arch(sim.sub_arch_dictionary)
-        self.assertEqual(sub["tiles"], 4)
-        self.assertEqual(sub["cores_per_tile"], 2)
-        self.assertEqual(sub["core"]["height"], 12)
-        self.assertEqual(sub["core"]["width"], 12)
+        self.assertEqual(sub["tiles"], system["tiles"])
+        self.assertEqual(sub["cores_per_tile"], system["cores_per_tile"])
+        self.assertEqual(sub["core"]["height"], core["height"])
+        self.assertEqual(sub["core"]["width"], core["width"])
 
         # 逐层 miniblock 遵循注入的几何（[tiles, cores_per_tile, height, width]）。
-        self.assertEqual(sim.arch_blocks["layer1"], [4, 2, 12, 12])
-        self.assertEqual(sim.arch_blocks["layer2"], [4, 2, 12, 12])
+        expected = [system["tiles"], system["cores_per_tile"], core["height"], core["width"]]
+        self.assertEqual(sim.arch_blocks["layer1"], expected)
+        self.assertEqual(sim.arch_blocks["layer2"], expected)
 
         # layer→sub-arch 映射现在指向注入的配置，使内存流程读取注入的 dataflow /
         # temporal factor。

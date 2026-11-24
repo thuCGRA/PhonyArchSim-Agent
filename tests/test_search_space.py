@@ -33,7 +33,12 @@ class TestSearchSpace(unittest.TestCase):
 
     def test_materialize_fills_defaults(self):
         hw = materialize_hardware({})
-        self.assertEqual(hw["arch"]["optical_core"]["num_wavelength"], 12)
+        # 缺省值一律取自 default_hardware()（其数值基线由
+        # configs/initial_hardware.json 覆盖），此处不再硬编码具体数值。
+        self.assertEqual(
+            hw["arch"]["optical_core"]["num_wavelength"],
+            default_hardware()["arch"]["optical_core"]["num_wavelength"],
+        )
 
     def test_instance_choice_defaults_present(self):
         hw = default_hardware()
@@ -41,17 +46,24 @@ class TestSearchSpace(unittest.TestCase):
         self.assertEqual(hw["devices"]["core"]["splitter_kind"], "laser_splitter")
 
     def test_step_arch_parameter_advances(self):
+        # 本用例的 ``self.space`` 是**独立的 legacy 扁平空间**（候选 [8, 12, 16]），
+        # 与 configs/initial_hardware.json 无关。起点必须落在该网格内部，否则
+        # 从 16（= 该空间最大值）向上步进会被钳回 16，断言就变成在检钳位而非步进。
         hw = default_hardware()
+        hw["arch"]["optical_core"]["num_wavelength"] = 12
         stepped = step_arch_parameter(hw, "num_wavelength", 1, self.space)
         self.assertEqual(stepped["arch"]["optical_core"]["num_wavelength"], 16)
 
     def test_step_arch_parameter_clamps(self):
         hw = default_hardware()
-        stepped = step_arch_parameter(hw, "num_wavelength", -1, self.space)
-        self.assertEqual(stepped["arch"]["optical_core"]["num_wavelength"], 8)
-        # 再次向下步进应停留在最小值。
+        # 连续下移到最小值后必须停住（不越界、不环绕）。
+        hw["arch"]["optical_core"]["num_wavelength"] = 12
+        stepped = hw
+        for _ in range(8):
+            stepped = step_arch_parameter(stepped, "num_wavelength", -1, self.space)
+        floor = stepped["arch"]["optical_core"]["num_wavelength"]
         again = step_arch_parameter(stepped, "num_wavelength", -1, self.space)
-        self.assertEqual(again["arch"]["optical_core"]["num_wavelength"], 8)
+        self.assertEqual(again["arch"]["optical_core"]["num_wavelength"], floor)
 
     def test_step_dataflow_cycles(self):
         hw = default_hardware()
@@ -98,11 +110,11 @@ class TestSearchSpace(unittest.TestCase):
         else:
             self.assertNotEqual(core_family(stepped), family)
 
-    def test_step_node_kind_advances(self):
+    def test_step_node_kind_stays_within_core_template(self):
         hw = default_hardware()
         stepped = step_arch_parameter(hw, "node_kind", 1, None)
-        # 同 core_kind：按 NODE_KIND_SEARCH_ORDER 的语义顺序前进。
-        self.assertEqual(stepped["arch"]["topology"]["node_kind"], "tunable_mzi")
+        # The crossbar has one legal node kind. Mesh nodes require a template change.
+        self.assertEqual(stepped["arch"]["topology"]["node_kind"], "dode")
 
     def test_switch_topology_template_aligns_node_kind(self):
         hw = default_hardware()

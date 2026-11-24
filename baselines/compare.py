@@ -256,10 +256,10 @@ def write_report(
                 "initial_objective": init_obj,
                 "n_evals": median.get("n_evals"),
                 "n_unique": median.get("n_unique"),
-                "latency_s": median["best"].get("latency_s", ""),
-                "energy_pj": median["best"].get("energy_pj", ""),
-                "area_um2": median["best"].get("area_um2", ""),
-                "pJ_per_mac": median["best"].get("pJ_per_mac", ""),
+                "latency_ms": median["best"].get("latency_ms", ""),
+                "energy_mj": median["best"].get("energy_mj", ""),
+                "area_mm2": median["best"].get("area_mm2", ""),
+                "fJ_per_mac": median["best"].get("fJ_per_mac", ""),
             })
 
             # 收敛曲线（各 seed 平均，按求值序号对齐）。
@@ -285,7 +285,7 @@ def write_report(
     # 写 CSV。
     fieldnames = ["workload", "method", "n_runs", "best_objective", "normalized_objective",
                   "improvement_pct", "initial_objective", "n_evals", "n_unique",
-                  "latency_s", "energy_pj", "area_um2", "pJ_per_mac"]
+                  "latency_ms", "energy_mj", "area_mm2", "fJ_per_mac"]
     with open(out_dir / "compare.csv", "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
         writer.writeheader()
@@ -297,14 +297,14 @@ def write_report(
     lines.append("> 归一化目标 = best_objective / initial_objective（<1 表示相对初始点改进，越低越好）。")
     lines.append("> 横轴统一为 SimPhony 求值次数；``n_runs`` 为随机种子数（agent 为运行目录数）。")
     lines.append("")
-    lines.append("| workload | method | runs | initial obj | best obj | normalized | improvement | evals | latency_s | energy_pj | area_um2 | pJ/MAC |")
+    lines.append("| workload | method | runs | initial obj | best obj | normalized | improvement | evals | latency_ms | energy_mj | area_mm2 | pJ/MAC |")
     lines.append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
     for row in rows:
         lines.append(
             f"| {row['workload']} | {row['method']} | {row['n_runs']} | "
             f"{row['initial_objective']:.3g} | {row['best_objective']:.3g} | "
             f"{row['normalized_objective']:.3f} | {row['improvement_pct']:.1f}% | "
-            f"{row['n_evals']} | {row['latency_s']} | {row['energy_pj']} | {row['area_um2']} | {row['pJ_per_mac']} |"
+            f"{row['n_evals']} | {row['latency_ms']} | {row['energy_mj']} | {row['area_mm2']} | {row['fJ_per_mac']} |"
         )
     lines.append("")
     out_md = "\n".join(lines)
