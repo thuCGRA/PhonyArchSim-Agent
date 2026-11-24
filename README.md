@@ -41,6 +41,7 @@ git clone https://github.com/thuCGRA/PhonyArchSim-Agent.git
 cd ~/PhonyArchSim-Agent
 bash scripts/env/bootstrap.sh
 ```
+如果因网络问题导致超时报错可以重新执行bash scripts/env/bootstrap.sh，会从断点处继续。
 
 统一配置入口是 `scripts/env/environment.conf`。它指定两个解释器、各自的依赖清单和上游源码版本。bootstrap.sh脚本会创建 `.venv-agent/`（默认 Python 3.14）和 `.venv-simulator/`（Python 3.10、CPU PyTorch 1.12.1），编译 CACTI，并从示例生成本地 `configs/llm.json`。迁移时在目标机器执行同一命令。仿真器随后通过 MCP 子进程运行。
 
