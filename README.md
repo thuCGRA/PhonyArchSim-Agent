@@ -30,10 +30,10 @@ sudo apt-get update
 sudo apt-get install -y git curl ca-certificates g++ make libgl1 libglib2.0-0
 ```
 
-完成后接着运行：
+完成后进入用cd命令进入/home/your username（否则会提示Permission denied）下接着运行：
 
 ```bash
-git https://github.com/thuCGRA/PhonyArchSim-Agent.git 
+git clone https://github.com/thuCGRA/PhonyArchSim-Agent.git 
 cd epic
 bash scripts/env/bootstrap.sh
 ```
