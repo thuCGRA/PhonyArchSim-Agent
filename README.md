@@ -33,7 +33,7 @@ sudo apt-get install -y git curl ca-certificates g++ make libgl1 libglib2.0-0
 将下面的仓库地址替换为自己的 GitHub 地址。在上一步选定的 Ubuntu 终端运行：
 
 ```bash
-git clone https://github.com/OWNER/REPOSITORY.git epic
+git https://github.com/thuCGRA/PhonyArchSim-Agent.git 
 cd epic
 bash scripts/env/bootstrap.sh
 ```
