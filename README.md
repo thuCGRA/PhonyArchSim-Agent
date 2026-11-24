@@ -23,14 +23,14 @@ OPEarch-Agent 用于搜索光电 AI 计算架构的硬件设计。给定一个�
 
 在选好的 Linux 终端执行 `uname -sm`，预期输出为 `Linux x86_64`。若只需核验安装和真实仿真是否跑通，仓库启用 GitHub Actions 后，也可查看 [CI 工作流](.github/workflows/ci.yml) 的 `real-simulator` 任务。该任务使用 mock 模型和真实 SimPhony，无需模型密钥。
 
-首次安装需要联网下载 Python、CPU 版 PyTorch 和仿真依赖，并用 GNU make 和 C++ 编译器编译 CACTI。先在 Ubuntu 安装系统工具：
+首次安装需要联网下载 Python、CPU 版 PyTorch 和仿真依赖，并用 GNU make 和 C++ 编译器编译 CACTI。先在 Ubuntu 安装系统工具，在终端运行以下命令：
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y git curl ca-certificates g++ make libgl1 libglib2.0-0
 ```
 
-将下面的仓库地址替换为自己的 GitHub 地址。在上一步选定的 Ubuntu 终端运行：
+在上一步选定的 Ubuntu 终端运行：
 
 ```bash
 git https://github.com/thuCGRA/PhonyArchSim-Agent.git 
