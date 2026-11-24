@@ -42,6 +42,23 @@ cd ~/PhonyArchSim-Agent
 bash scripts/env/bootstrap.sh
 ```
 如果因网络问题导致超时报错可以重新执行bash scripts/env/bootstrap.sh，会从断点处继续。
+运行结束后有打印下列内容说明已经初步成功
+
+SimPhony is ready in /home/your username/PhonyArchSim-Agent/.venv-simulator
+
+==> [5/5] LLM config
+    created configs/llm.json (edit provider/model/base_url as needed)
+
+==> done
+
+============================== summary ==============================
+  agent venv     : .venv-agent/bin/python
+  simulator venv : .venv-simulator/bin/python
+  llm config     : configs/llm.json (from example; secrets via OPENAI_API_KEY)
+
+  
+进一步测试：
+.venv-agent/bin/python tests/run_tests.py
 
 统一配置入口是 `scripts/env/environment.conf`。它指定两个解释器、各自的依赖清单和上游源码版本。bootstrap.sh脚本会创建 `.venv-agent/`（默认 Python 3.14）和 `.venv-simulator/`（Python 3.10、CPU PyTorch 1.12.1），编译 CACTI，并从示例生成本地 `configs/llm.json`。迁移时在目标机器执行同一命令。仿真器随后通过 MCP 子进程运行。
 
